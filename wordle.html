@@ -326,6 +326,7 @@
     addDoc,
     serverTimestamp,
     query,
+    where,
     orderBy,
     limit,
     onSnapshot
@@ -343,6 +344,7 @@ const firebaseConfig = {
 
   let db = null;
   let scoresCollection = null;
+  let CURRENT_GAME_ID = null; // her link için benzersiz oyun id'si
   try {
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
@@ -434,53 +436,57 @@ const firebaseConfig = {
     });
   }
 
-  async function addScoreToLeaderboard(name, score, attempts, word) {
-    if (!scoresCollection) {
-      console.warn("Leaderboard devrede değil, skor kaydedilmedi.");
-      return;
-    }
-    try {
-      await addDoc(scoresCollection, {
-        name,
-        score,
-        attempts,
-        wordLength: word.length,
-        createdAt: serverTimestamp()
-      });
-    } catch (e) {
-      console.error("Skor yazılırken hata:", e);
-    }
+async function addScoreToLeaderboard(name, score, attempts, word, gameId) {
+  if (!scoresCollection) {
+    console.warn("Leaderboard devrede değil, skor kaydedilmedi.");
+    return;
   }
+  try {
+    await addDoc(scoresCollection, {
+      name,
+      score,
+      attempts,
+      wordLength: word.length,
+      gameId,                  // <--- ÖNEMLİ: HANGİ LİNKE AİT OLDUĞU
+      createdAt: serverTimestamp()
+    });
+  } catch (e) {
+    console.error("Skor yazılırken hata:", e);
+  }
+}
 
-  function subscribeLeaderboard() {
-    if (!scoresCollection) {
-      renderLeaderboardFallback("Firebase yapılandırılmadı, leaderboard devre dışı.");
-      return;
-    }
-    try {
-      const q = query(
-        scoresCollection,
-        orderBy("score", "desc"),
-        orderBy("createdAt", "asc"),
-        limit(20)
-      );
-      onSnapshot(
-        q,
-        (snapshot) => {
-          const rows = [];
-          snapshot.forEach((doc) => rows.push(doc.data()));
-          renderLeaderboard(rows);
-        },
-        (error) => {
-          console.error("Leaderboard okunamadı:", error);
-          renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
-        }
-      );
-    } catch (e) {
-      console.error("Leaderboard subscribe hatası:", e);
-      renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
-    }
+
+function subscribeLeaderboard(gameId) {
+  if (!scoresCollection) {
+    renderLeaderboardFallback("Firebase yapılandırılmadı, leaderboard devre dışı.");
+    return;
   }
+  try {
+    const q = query(
+      scoresCollection,
+      where("gameId", "==", gameId),   // <--- SADECE BU OYUNUN SKORLARI
+      orderBy("score", "desc"),
+      orderBy("createdAt", "asc"),
+      limit(20)
+    );
+    onSnapshot(
+      q,
+      (snapshot) => {
+        const rows = [];
+        snapshot.forEach((doc) => rows.push(doc.data()));
+        renderLeaderboard(rows);
+      },
+      (error) => {
+        console.error("Leaderboard okunamadı:", error);
+        renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
+      }
+    );
+  } catch (e) {
+    console.error("Leaderboard subscribe hatası:", e);
+    renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
+  }
+}
+
 
   /* ===== Uygulama başlangıcı ===== */
   let creatorSection, gameSection;
@@ -554,15 +560,19 @@ const firebaseConfig = {
     }
 
     // Tahmin modu
-    if (codeParam) {
-      creatorSection.style.display = "none";
-      gameSection.style.display    = "block";
+  if (codeParam) {
+    // Bu linke özel oyun id'si (mod + kod)
+    CURRENT_GAME_ID = `${modeParam}:${codeParam}`;
 
-      // Kullanıcı adını hemen iste
-      setTimeout(() => { getPlayerName(); }, 50);
+    creatorSection.style.display = "none";
+    gameSection.style.display    = "block";
 
-      // Leaderboard’a bağlan
-      subscribeLeaderboard();
+    // Kullanıcı adını hemen iste
+    setTimeout(() => { getPlayerName(); }, 50);
+
+    // Leaderboard’a bu oyunun id'siyle bağlan
+    subscribeLeaderboard(CURRENT_GAME_ID);
+
 
       let secretWord = decodeSecret(codeParam).toUpperCase().replace(/\s+/g, "");
       if (!/^[A-ZÇĞİÖŞÜ]+$/.test(secretWord) || secretWord.length < 2) {
@@ -577,12 +587,13 @@ const firebaseConfig = {
         ? "Mod: Wordle (5 harfli kelime)"
         : "Mod: Serbest uzunluk";
 
-      initGame(secretWord);
+       initGame(secretWord, CURRENT_GAME_ID);
+
     }
   }
 
   /* ===== Oyun Modu ===== */
-  function initGame(secretWord) {
+  function initGame(secretWord, gameId) {
     const ROWS = 6;
     const COLS = secretWord.length;
 
@@ -735,9 +746,10 @@ const firebaseConfig = {
           10,
           base - (attempts - 1) * 150 - (secretWord.length - 3) * 20
         );
-        const name = getPlayerName();
-        addScoreToLeaderboard(name, score, attempts, secretWord);
-        showStatus(`Tebrikler, kelimeyi buldun! 🎉 Skorun: ${score}`, "#22c55e");
+              const name = getPlayerName();
+      addScoreToLeaderboard(name, score, attempts, secretWord, gameId);
+      showStatus(`Tebrikler, kelimeyi buldun! 🎉 Skorun: ${score}`, "#22c55e");
+
         finished = true;
         return;
       }
@@ -810,4 +822,5 @@ const firebaseConfig = {
 </script>
 </body>
 </html>
+
 
