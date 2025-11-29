@@ -1,246 +1,244 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8" />
-<title>Hidden Word – Paylaşımlı Kelime Tahmini</title>
-<style>
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #050813;
-    color: #f9fafb;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-  }
-  #app {
-    width: 900px;
-    max-width: 100vw;
-    padding: 20px;
-  }
-  h1 {
-    margin: 0 0 4px 0;
-    text-align: center;
-    letter-spacing: 6px;
-    font-size: 24px;
-  }
-  .subtitle {
-    text-align: center;
-    font-size: 13px;
-    color: #9ca3af;
-    margin-bottom: 18px;
-  }
-  .panel {
-    background: radial-gradient(circle at top, rgba(56,189,248,0.1), transparent 60%),
-                radial-gradient(circle at bottom, rgba(147,51,234,0.15), transparent 60%),
-                #020617;
-    border-radius: 16px;
-    padding: 16px 18px;
-    border: 1px solid #1f2937;
-    box-shadow: 0 18px 45px rgba(15,23,42,0.9);
-    margin-bottom: 16px;
-  }
-  label {
-    font-size: 14px;
-    display: block;
-    margin-bottom: 6px;
-  }
-  input[type="text"] {
-    width: 100%;
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid #374151;
-    background: #020617;
-    color: #f9fafb;
-    font-size: 16px;
-    letter-spacing: 4px;
-    text-transform: uppercase;
-  }
-  input[type="text"]:focus {
-    outline: none;
-    border-color: #38bdf8;
-    box-shadow: 0 0 0 1px rgba(56,189,248,0.3);
-  }
-  select {
-    width: 100%;
-    padding: 6px 8px;
-    border-radius: 8px;
-    border: 1px solid #374151;
-    background: #020617;
-    color: #e5e7eb;
-    font-size: 13px;
-  }
-  button {
-    border: none;
-    border-radius: 8px;
-    padding: 10px 16px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    color: white;
-    box-shadow: 0 8px 18px rgba(22,163,74,0.5);
-    transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
-    white-space: nowrap;
-  }
-  button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 20px rgba(22,163,74,0.7);
-  }
-  button:active {
-    transform: translateY(0);
-    box-shadow: 0 4px 10px rgba(22,163,74,0.4);
-  }
-  .creator-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: flex-end;
-  }
-  .creator-row > div {
-    flex: 1 1 220px;
-  }
-  #generated-link-wrap {
-    margin-top: 10px;
-    font-size: 13px;
-    color: #e5e7eb;
-    display: none;
-  }
-  #generated-link {
-    margin-top: 6px;
-    width: 100%;
-    padding: 6px 8px;
-    border-radius: 8px;
-    font-size: 12px;
-    border: 1px solid #374151;
-    background: #020617;
-    color: #9ca3af;
-  }
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    padding: 4px 8px;
-    border-radius: 999px;
-    background: rgba(15,118,110,0.2);
-    color: #6ee7b7;
-  }
-  #status {
-    min-height: 22px;
-    font-size: 14px;
-    margin-bottom: 8px;
-  }
-  #board {
-    margin: 10px auto 16px;
-    width: 100%;
-    max-width: 520px;
-    display: grid;
-    grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr));
-    grid-gap: 6px;
-  }
-  .tile {
-    width: 100%;
-    padding-top: 100%;
-    position: relative;
-    border-radius: 6px;
-    border: 2px solid #1f2937;
-    background: #020617;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 22px;
-    font-weight: 700;
-    color: #e5e7eb;
-    text-transform: uppercase;
-  }
-  .tile-inner {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-  .tile-filled { border-color: #4b5563; }
-  .tile-correct {
-    background: #16a34a;
-    border-color: #16a34a;
-    color: #f9fafb;
-  }
-  .tile-present {
-    background: #eab308;
-    border-color: #eab308;
-    color: #111827;
-  }
-  .tile-absent {
-    background: #111827;
-    border-color: #111827;
-    color: #6b7280;
-  }
-  #keyboard {
-    max-width: 540px;
-    margin: 0 auto;
-    user-select: none;
-  }
-  .kb-row {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 6px;
-    gap: 4px;
-  }
-  .key {
-    flex: 1 1 32px;
-    padding: 10px 0;
-    border-radius: 6px;
-    border: none;
-    background: #111827;
-    color: #e5e7eb;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    text-transform: uppercase;
-  }
-  .key.special {
-    flex: 1.5 1 46px;
-    font-size: 11px;
-  }
-  .key-correct { background: #16a34a; color:#f9fafb; }
-  .key-present { background: #eab308; color:#111827; }
-  .key-absent  { background: #020617; color:#6b7280; }
-  #helper {
-    text-align: center;
-    font-size: 11px;
-    color: #9ca3af;
-  }
-  #leaderboard-panel {
-    margin-top: 14px;
-    border-top: 1px solid #1f2937;
-    padding-top: 10px;
-  }
-  #leaderboard-panel table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-  }
-  #leaderboard-panel th,
-  #leaderboard-panel td {
-    padding: 3px 4px;
-  }
-  #leaderboard-panel th {
-    color: #9ca3af;
-    font-weight: 600;
-    text-align: left;
-  }
-  #leaderboard-panel td {
-    color: #e5e7eb;
-    border-top: 1px solid #020617;
-  }
-  @media (max-width: 600px) {
-    #board { max-width: 100%; }
-  }
-</style>
+  <meta charset="UTF-8" />
+  <title>Hidden Word – Paylaşımlı Kelime Oyunu</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #050813;
+      color: #f9fafb;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    #app {
+      width: 900px;
+      max-width: 100vw;
+      padding: 20px;
+    }
+    h1 {
+      margin: 0 0 4px 0;
+      text-align: center;
+      letter-spacing: 6px;
+      font-size: 24px;
+    }
+    .subtitle {
+      text-align: center;
+      font-size: 13px;
+      color: #9ca3af;
+      margin-bottom: 18px;
+    }
+    .panel {
+      background: radial-gradient(circle at top, rgba(56,189,248,0.1), transparent 60%),
+                  radial-gradient(circle at bottom, rgba(147,51,234,0.15), transparent 60%),
+                  #020617;
+      border-radius: 16px;
+      padding: 16px 18px;
+      border: 1px solid #1f2937;
+      box-shadow: 0 18px 45px rgba(15,23,42,0.9);
+      margin-bottom: 16px;
+    }
+    label {
+      font-size: 14px;
+      display: block;
+      margin-bottom: 6px;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #374151;
+      background: #020617;
+      color: #f9fafb;
+      font-size: 16px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 1px rgba(56,189,248,0.3);
+    }
+    select {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid #374151;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 13px;
+    }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: white;
+      box-shadow: 0 8px 18px rgba(22,163,74,0.5);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
+      white-space: nowrap;
+    }
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(22,163,74,0.7);
+    }
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 4px 10px rgba(22,163,74,0.4);
+    }
+    .creator-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+    }
+    .creator-row > div { flex: 1 1 220px; }
+    #generated-link-wrap {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #e5e7eb;
+      display: none;
+    }
+    #generated-link {
+      margin-top: 6px;
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 8px;
+      font-size: 12px;
+      border: 1px solid #374151;
+      background: #020617;
+      color: #9ca3af;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(15,118,110,0.2);
+      color: #6ee7b7;
+    }
+    #status {
+      min-height: 22px;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    #board {
+      margin: 10px auto 16px;
+      width: 100%;
+      max-width: 520px;
+      display: grid;
+      grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr));
+      grid-gap: 6px;
+    }
+    .tile {
+      width: 100%;
+      padding-top: 100%;
+      position: relative;
+      border-radius: 6px;
+      border: 2px solid #1f2937;
+      background: #020617;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 22px;
+      font-weight: 700;
+      color: #e5e7eb;
+      text-transform: uppercase;
+    }
+    .tile-inner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .tile-filled { border-color: #4b5563; }
+    .tile-correct {
+      background: #16a34a;
+      border-color: #16a34a;
+      color: #f9fafb;
+    }
+    .tile-present {
+      background: #eab308;
+      border-color: #eab308;
+      color: #111827;
+    }
+    .tile-absent {
+      background: #111827;
+      border-color: #111827;
+      color: #6b7280;
+    }
+    #keyboard {
+      max-width: 540px;
+      margin: 0 auto;
+      user-select: none;
+    }
+    .kb-row {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 6px;
+      gap: 4px;
+    }
+    .key {
+      flex: 1 1 32px;
+      padding: 10px 0;
+      border-radius: 6px;
+      border: none;
+      background: #111827;
+      color: #e5e7eb;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+    .key.special {
+      flex: 1.5 1 46px;
+      font-size: 11px;
+    }
+    .key-correct { background: #16a34a; color:#f9fafb; }
+    .key-present { background: #eab308; color:#111827; }
+    .key-absent  { background: #020617; color:#6b7280; }
+    #helper {
+      text-align: center;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+    #leaderboard-panel {
+      margin-top: 14px;
+      border-top: 1px solid #1f2937;
+      padding-top: 10px;
+    }
+    #leaderboard-panel table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    #leaderboard-panel th,
+    #leaderboard-panel td {
+      padding: 3px 4px;
+    }
+    #leaderboard-panel th {
+      color: #9ca3af;
+      font-weight: 600;
+      text-align: left;
+    }
+    #leaderboard-panel td {
+      color: #e5e7eb;
+      border-top: 1px solid #020617;
+    }
+    @media (max-width: 600px) {
+      #board { max-width: 100%; }
+    }
+  </style>
 </head>
 <body>
 <div id="app">
@@ -289,7 +287,7 @@
     <!-- Leaderboard -->
     <div id="leaderboard-panel">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <span style="font-size:13px;color:#e5e7eb;font-weight:600;">Leaderboard (global)</span>
+        <span style="font-size:13px;color:#e5e7eb;font-weight:600;">Leaderboard (bu link)</span>
         <button id="change-name-btn" style="padding:4px 10px;font-size:11px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);box-shadow:none;">İsim değiştir</button>
       </div>
       <table>
@@ -309,16 +307,11 @@
   </div>
 </div>
 
-<!-- Kelime havuzu (VALID_WORDS + WORDS_READY burada tanımlanıyor) -->
+<!-- TDK kelime listesi / VALID_WORDS burada -->
 <script src="words_tr.js"></script>
 
-<!-- Oyun + Firebase kodu -->
 <script type="module">
-  /*************** Firebase Kurulumu ***************
-   * 1) https://console.firebase.google.com üzerinden bir proje oluştur.
-   * 2) "Web App" ekle ve config nesnesini al.
-   * 3) Aşağıdaki firebaseConfig içini kendi değerlerinle doldur.
-   ************************************************/
+  /*************** Firebase Kurulumu ***************/
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import {
     getFirestore,
@@ -332,6 +325,7 @@
     onSnapshot
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+  // ⚠️ BURAYI KENDİ FIREBASE CONFIG'İNLE DOLDUR
 const firebaseConfig = {
   apiKey: "AIzaSyAcKlwqRKpzjJTTp_WptQNxuKLRcJXqH6Y",
   authDomain: "hidden-word-game.firebaseapp.com",
@@ -344,7 +338,8 @@ const firebaseConfig = {
 
   let db = null;
   let scoresCollection = null;
-  let CURRENT_GAME_ID = null; // her link için benzersiz oyun id'si
+  let CURRENT_GAME_ID = null;
+
   try {
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
@@ -353,38 +348,29 @@ const firebaseConfig = {
     console.warn("Firebase init başarısız. Leaderboard devre dışı:", e);
   }
 
-  /* ===== Util fonksiyonlar ===== */
+  /* ===== Küçük yardımcılar ===== */
   function getQueryParam(name) {
     const params = new URLSearchParams(window.location.search);
     return params.get(name);
   }
 
-  // Kelime gizleme: charCode + sabit kaydırma
   const SECRET_SHIFT = 37;
-
   function encodeSecret(word) {
     const parts = [];
     for (let i = 0; i < word.length; i++) {
-      const code = word.charCodeAt(i) + SECRET_SHIFT;
-      parts.push(code);
+      parts.push(word.charCodeAt(i) + SECRET_SHIFT);
     }
     return parts.join("x");
   }
-
   function decodeSecret(code) {
     if (!code) return "";
-    const parts = code.split("x");
-    let result = "";
-    for (const p of parts) {
-      const n = parseInt(p, 10);
-      if (!Number.isNaN(n)) {
-        result += String.fromCharCode(n - SECRET_SHIFT);
-      }
-    }
-    return result;
+    return code
+      .split("x")
+      .map(p => String.fromCharCode(parseInt(p,10) - SECRET_SHIFT))
+      .join("");
   }
 
-  /* ===== Kullanıcı adı + Leaderboard ===== */
+  /* ===== Kullanıcı adı & Leaderboard ===== */
   const NAME_KEY = "hiddenWordPlayerName_v1";
   let playerName = "";
 
@@ -421,7 +407,7 @@ const firebaseConfig = {
     if (!tbody) return;
     tbody.innerHTML = "";
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="4" style="padding:4px 4px;color:#6b7280;">Henüz skor yok.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" style="padding:4px 4px;color:#6b7280;">Bu link için henüz skor yok.</td></tr>';
       return;
     }
     rows.forEach((item, idx) => {
@@ -436,59 +422,57 @@ const firebaseConfig = {
     });
   }
 
-async function addScoreToLeaderboard(name, score, attempts, word, gameId) {
-  if (!scoresCollection) {
-    console.warn("Leaderboard devrede değil, skor kaydedilmedi.");
-    return;
+  async function addScoreToLeaderboard(name, score, attempts, word, gameId) {
+    if (!scoresCollection) {
+      console.warn("Leaderboard devrede değil, skor kaydedilmedi.");
+      return;
+    }
+    try {
+      await addDoc(scoresCollection, {
+        name,
+        score,
+        attempts,
+        wordLength: word.length,
+        gameId,
+        createdAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.error("Skor yazılırken hata:", e);
+    }
   }
-  try {
-    await addDoc(scoresCollection, {
-      name,
-      score,
-      attempts,
-      wordLength: word.length,
-      gameId,                  // <--- ÖNEMLİ: HANGİ LİNKE AİT OLDUĞU
-      createdAt: serverTimestamp()
-    });
-  } catch (e) {
-    console.error("Skor yazılırken hata:", e);
+
+  function subscribeLeaderboard(gameId) {
+    if (!scoresCollection) {
+      renderLeaderboardFallback("Firebase yapılandırılmadı, leaderboard devre dışı.");
+      return;
+    }
+    try {
+      const q = query(
+        scoresCollection,
+        where("gameId", "==", gameId),
+        orderBy("score", "desc"),
+        orderBy("createdAt", "asc"),
+        limit(20)
+      );
+      onSnapshot(
+        q,
+        (snapshot) => {
+          const rows = [];
+          snapshot.forEach((doc) => rows.push(doc.data()));
+          renderLeaderboard(rows);
+        },
+        (error) => {
+          console.error("Leaderboard okunamadı:", error);
+          renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
+        }
+      );
+    } catch (e) {
+      console.error("Leaderboard subscribe hatası:", e);
+      renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
+    }
   }
-}
 
-
-function subscribeLeaderboard(gameId) {
-  if (!scoresCollection) {
-    renderLeaderboardFallback("Firebase yapılandırılmadı, leaderboard devre dışı.");
-    return;
-  }
-  try {
-    const q = query(
-      scoresCollection,
-      where("gameId", "==", gameId),   // <--- SADECE BU OYUNUN SKORLARI
-      orderBy("score", "desc"),
-      orderBy("createdAt", "asc"),
-      limit(20)
-    );
-    onSnapshot(
-      q,
-      (snapshot) => {
-        const rows = [];
-        snapshot.forEach((doc) => rows.push(doc.data()));
-        renderLeaderboard(rows);
-      },
-      (error) => {
-        console.error("Leaderboard okunamadı:", error);
-        renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
-      }
-    );
-  } catch (e) {
-    console.error("Leaderboard subscribe hatası:", e);
-    renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
-  }
-}
-
-
-  /* ===== Uygulama başlangıcı ===== */
+  /* ===== App başlangıcı ===== */
   let creatorSection, gameSection;
 
   window.addEventListener("load", async () => {
@@ -502,12 +486,12 @@ function subscribeLeaderboard(gameId) {
     creatorSection = document.getElementById("creator-section");
     gameSection   = document.getElementById("game-section");
 
-    const secretInput = document.getElementById("secret-input");
-    const modeSelect  = document.getElementById("mode-select");
-    const createBtn   = document.getElementById("create-link-btn");
-    const linkWrap    = document.getElementById("generated-link-wrap");
-    const linkInput   = document.getElementById("generated-link");
-    const copyBtn     = document.getElementById("copy-link-btn");
+    const secretInput   = document.getElementById("secret-input");
+    const modeSelect    = document.getElementById("mode-select");
+    const createBtn     = document.getElementById("create-link-btn");
+    const linkWrap      = document.getElementById("generated-link-wrap");
+    const linkInput     = document.getElementById("generated-link");
+    const copyBtn       = document.getElementById("copy-link-btn");
     const changeNameBtn = document.getElementById("change-name-btn");
 
     const codeParam = getQueryParam("code");
@@ -560,19 +544,14 @@ function subscribeLeaderboard(gameId) {
     }
 
     // Tahmin modu
-  if (codeParam) {
-    // Bu linke özel oyun id'si (mod + kod)
-    CURRENT_GAME_ID = `${modeParam}:${codeParam}`;
+    if (codeParam) {
+      CURRENT_GAME_ID = `${modeParam}:${codeParam}`;
 
-    creatorSection.style.display = "none";
-    gameSection.style.display    = "block";
+      creatorSection.style.display = "none";
+      gameSection.style.display    = "block";
 
-    // Kullanıcı adını hemen iste
-    setTimeout(() => { getPlayerName(); }, 50);
-
-    // Leaderboard’a bu oyunun id'siyle bağlan
-    subscribeLeaderboard(CURRENT_GAME_ID);
-
+      setTimeout(() => { getPlayerName(); }, 50);
+      subscribeLeaderboard(CURRENT_GAME_ID);
 
       let secretWord = decodeSecret(codeParam).toUpperCase().replace(/\s+/g, "");
       if (!/^[A-ZÇĞİÖŞÜ]+$/.test(secretWord) || secretWord.length < 2) {
@@ -587,12 +566,11 @@ function subscribeLeaderboard(gameId) {
         ? "Mod: Wordle (5 harfli kelime)"
         : "Mod: Serbest uzunluk";
 
-       initGame(secretWord, CURRENT_GAME_ID);
-
+      initGame(secretWord, CURRENT_GAME_ID);
     }
   }
 
-  /* ===== Oyun Modu ===== */
+  /* ===== Oyun mantığı ===== */
   function initGame(secretWord, gameId) {
     const ROWS = 6;
     const COLS = secretWord.length;
@@ -740,16 +718,14 @@ function subscribeLeaderboard(gameId) {
 
       if (upperGuess === secretWord) {
         const attempts = currentRow + 1;
-        // Basit skor: uzun kelime + az deneme = yüksek skor
         const base = 1200;
         const score = Math.max(
           10,
           base - (attempts - 1) * 150 - (secretWord.length - 3) * 20
         );
-              const name = getPlayerName();
-      addScoreToLeaderboard(name, score, attempts, secretWord, gameId);
-      showStatus(`Tebrikler, kelimeyi buldun! 🎉 Skorun: ${score}`, "#22c55e");
-
+        const name = getPlayerName();
+        addScoreToLeaderboard(name, score, attempts, secretWord, gameId);
+        showStatus(`Tebrikler, kelimeyi buldun! 🎉 Skorun: ${score}`, "#22c55e");
         finished = true;
         return;
       }
@@ -822,5 +798,3 @@ function subscribeLeaderboard(gameId) {
 </script>
 </body>
 </html>
-
-
