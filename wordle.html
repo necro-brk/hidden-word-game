@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<title>Hidden Word – Paylaşımlı Kelime Tahmini</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #050813;
+    color: #f9fafb;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+  #app {
+    width: 900px;
+    max-width: 100vw;
+    padding: 20px;
+  }
+  h1 {
+    margin: 0 0 4px 0;
+    text-align: center;
+    letter-spacing: 6px;
+    font-size: 24px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: #9ca3af;
+    margin-bottom: 18px;
+  }
+  .panel {
+    background: radial-gradient(circle at top, rgba(56,189,248,0.1), transparent 60%),
+                radial-gradient(circle at bottom, rgba(147,51,234,0.15), transparent 60%),
+                #020617;
+    border-radius: 16px;
+    padding: 16px 18px;
+    border: 1px solid #1f2937;
+    box-shadow: 0 18px 45px rgba(15,23,42,0.9);
+    margin-bottom: 16px;
+  }
+  label {
+    font-size: 14px;
+    display: block;
+    margin-bottom: 6px;
+  }
+  input[type="text"] {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #374151;
+    background: #020617;
+    color: #f9fafb;
+    font-size: 16px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+  }
+  input[type="text"]:focus {
+    outline: none;
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 1px rgba(56,189,248,0.3);
+  }
+  select {
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid #374151;
+    background: #020617;
+    color: #e5e7eb;
+    font-size: 13px;
+  }
+  button {
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: white;
+    box-shadow: 0 8px 18px rgba(22,163,74,0.5);
+    transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
+    white-space: nowrap;
+  }
+  button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px rgba(22,163,74,0.7);
+  }
+  button:active {
+    transform: translateY(0);
+    box-shadow: 0 4px 10px rgba(22,163,74,0.4);
+  }
+  .creator-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+  }
+  .creator-row > div {
+    flex: 1 1 220px;
+  }
+  #generated-link-wrap {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #e5e7eb;
+  }
+  #generated-link {
+    margin-top: 6px;
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 8px;
+    font-size: 12px;
+    border: 1px solid #374151;
+    background: #020617;
+    color: #9ca3af;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(15,118,110,0.2);
+    color: #6ee7b7;
+  }
+  #status {
+    min-height: 22px;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+  #board {
+    margin: 10px auto 16px;
+    width: 100%;
+    max-width: 520px;
+    display: grid;
+    grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr));
+    grid-gap: 6px;
+  }
+  .tile {
+    width: 100%;
+    padding-top: 100%;
+    position: relative;
+    border-radius: 6px;
+    border: 2px solid #1f2937;
+    background: #020617;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: #e5e7eb;
+    text-transform: uppercase;
+  }
+  .tile-inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .tile-filled { border-color: #4b5563; }
+  .tile-correct {
+    background: #16a34a;
+    border-color: #16a34a;
+    color: #f9fafb;
+  }
+  .tile-present {
+    background: #eab308;
+    border-color: #eab308;
+    color: #111827;
+  }
+  .tile-absent {
+    background: #111827;
+    border-color: #111827;
+    color: #6b7280;
+  }
+  #keyboard {
+    max-width: 540px;
+    margin: 0 auto;
+    user-select: none;
+  }
+  .kb-row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 6px;
+    gap: 4px;
+  }
+  .key {
+    flex: 1 1 32px;
+    padding: 10px 0;
+    border-radius: 6px;
+    border: none;
+    background: #111827;
+    color: #e5e7eb;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-transform: uppercase;
+  }
+  .key.special {
+    flex: 1.5 1 46px;
+    font-size: 11px;
+  }
+  .key-correct { background: #16a34a; color:#f9fafb; }
+  .key-present { background: #eab308; color:#111827; }
+  .key-absent  { background: #020617; color:#6b7280; }
+  #helper {
+    text-align: center;
+    font-size: 11px;
+    color: #9ca3af;
+  }
+  @media (max-width: 600px) {
+    #board { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>HIDDEN WORD</h1>
+  <div class="subtitle">
+    Gizli bir kelime oluştur, linki arkadaşına gönder; o kelimeyi tahmin etmeye çalışsın.
+  </div>
+
+  <!-- Kelime oluşturma -->
+  <div id="creator-section" class="panel">
+    <div class="creator-row">
+      <div>
+        <label>Gizli kelime:</label>
+        <input id="secret-input" type="text" placeholder="Örn: ARABA" />
+      </div>
+      <div>
+        <label>Oyun modu:</label>
+        <select id="mode-select">
+          <option value="free">Serbest uzunluk (TDK’daki tüm kelimeler)</option>
+          <option value="five">Wordle modu (5 harfli)</option>
+        </select>
+      </div>
+      <div style="flex:0 0 auto;">
+        <button id="create-link-btn">Link Oluştur</button>
+      </div>
+    </div>
+    <div id="generated-link-wrap" style="display:none;">
+      <div>Bu linki arkadaşına gönder:</div>
+      <input id="generated-link" type="text" readonly />
+      <button id="copy-link-btn" style="margin-top:6px;">Kopyala</button>
+    </div>
+  </div>
+
+  <!-- Oyun bölümü -->
+  <div id="game-section" class="panel" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <div class="badge">Tahmin modu</div>
+      <div id="mode-label" style="font-size:12px;color:#9ca3af;"></div>
+    </div>
+
+    <div id="status"></div>
+    <div id="board"></div>
+    <div id="keyboard"></div>
+    <div id="helper">Klavyeden yazabilirsin · ENTER ile gönder, BACKSPACE ile sil.</div>
+  </div>
+</div>
+
+<!-- 1) Kelime havuzu (VALID_WORDS ve WORDS_READY burada tanımlanıyor) -->
+<script src="words_tr.js"></script>
+
+<!-- 2) Oyun kodu -->
+<script>
+function getQueryParam(name) {
+  const params = new URLSearchParams(window.location.search);
+  return params.get(name);
+}
+function encodeSecret(word) {
+  return encodeURIComponent(word.toUpperCase());
+}
+function decodeSecret(code) {
+  try { return decodeURIComponent(code || ""); }
+  catch(e) { return ""; }
+}
+
+let creatorSection, gameSection;
+
+// SAYFA YÜKLENİNCE: önce kelimeler yüklensin, sonra uygulama başlasın
+window.addEventListener("load", async () => {
+  if (window.WORDS_READY) {
+    try { await window.WORDS_READY; } catch(e) {}
+  }
+  startApp();
+});
+
+function startApp() {
+  creatorSection = document.getElementById("creator-section");
+  gameSection   = document.getElementById("game-section");
+
+  const secretInput = document.getElementById("secret-input");
+  const modeSelect  = document.getElementById("mode-select");
+  const createBtn   = document.getElementById("create-link-btn");
+  const linkWrap    = document.getElementById("generated-link-wrap");
+  const linkInput   = document.getElementById("generated-link");
+  const copyBtn     = document.getElementById("copy-link-btn");
+
+  const codeParam = getQueryParam("code");
+  const modeParam = getQueryParam("mode") || "free";
+
+  // Link oluşturma modu
+  if (createBtn) {
+    createBtn.addEventListener("click", () => {
+      let word = (secretInput.value || "").trim().toUpperCase();
+      const mode = modeSelect.value;
+
+      if (!word) {
+        alert("Lütfen bir gizli kelime yaz.");
+        return;
+      }
+
+      word = word.replace(/\s+/g, "");
+
+      if (mode === "five" && word.length !== 5) {
+        alert("Wordle modunda kelime 5 harfli olmalı.");
+        return;
+      }
+
+      if (!/^[A-ZÇĞİÖŞÜ]+$/.test(word)) {
+        if (!confirm("Kelimenizde harf dışı karakter var. Yine de kullanmak istiyor musun?")) {
+          return;
+        }
+      }
+
+      const code = encodeSecret(word);
+      const url  = `${window.location.origin}${window.location.pathname}?code=${code}&mode=${mode}`;
+      linkInput.value = url;
+      linkWrap.style.display = "block";
+    });
+  }
+
+  if (copyBtn) {
+    copyBtn.addEventListener("click", () => {
+      linkInput.select();
+      document.execCommand("copy");
+      copyBtn.textContent = "Kopyalandı ✔";
+      setTimeout(() => copyBtn.textContent = "Kopyala", 1500);
+    });
+  }
+
+  // Tahmin modu mu?
+  if (codeParam) {
+    creatorSection.style.display = "none";
+    gameSection.style.display    = "block";
+
+    let secretWord = decodeSecret(codeParam).toUpperCase().replace(/\s+/g, "");
+    if (!/^[A-ZÇĞİÖŞÜ]+$/.test(secretWord) || secretWord.length < 2) {
+      secretWord = "HATA";
+    }
+    if (modeParam === "five" && secretWord.length !== 5) {
+      secretWord = secretWord.slice(0,5).padEnd(5, "A");
+    }
+
+    const modeLabel = document.getElementById("mode-label");
+    modeLabel.textContent = modeParam === "five"
+      ? "Mod: Wordle (5 harfli kelime)"
+      : "Mod: Serbest uzunluk";
+
+    initGame(secretWord);
+  }
+}
+
+// ========== OYUN MODU ==========
+function initGame(secretWord) {
+  const ROWS = 6;
+  const COLS = secretWord.length;
+
+  const boardElem    = document.getElementById("board");
+  const statusElem   = document.getElementById("status");
+  const keyboardElem = document.getElementById("keyboard");
+
+  boardElem.style.setProperty("--cols", COLS);
+
+  let currentRow = 0;
+  let currentCol = 0;
+  let finished   = false;
+
+  const tiles = [];
+  boardElem.innerHTML = "";
+  for (let r = 0; r < ROWS; r++) {
+    tiles[r] = [];
+    for (let c = 0; c < COLS; c++) {
+      const tile  = document.createElement("div");
+      tile.className = "tile";
+      const inner = document.createElement("div");
+      inner.className = "tile-inner";
+      tile.appendChild(inner);
+      boardElem.appendChild(tile);
+      tiles[r][c] = tile;
+    }
+  }
+
+  function showStatus(msg, color) {
+    statusElem.textContent = msg;
+    statusElem.style.color = color || "#e5e7eb";
+  }
+
+  function getCurrentGuess() {
+    let guess = "";
+    for (let c = 0; c < COLS; c++) {
+      const ch = tiles[currentRow][c].querySelector(".tile-inner").textContent || "";
+      guess += ch;
+    }
+    return guess;
+  }
+
+  function setTile(r, c, ch) {
+    const tile  = tiles[r][c];
+    const inner = tile.querySelector(".tile-inner");
+    inner.textContent = ch;
+    if (ch) tile.classList.add("tile-filled");
+    else    tile.classList.remove("tile-filled");
+  }
+
+  // Sanal klavye
+  const kbLayout = [
+    "QWERTYUIOPĞÜ",
+    "ASDFGHJKLŞİ",
+    "ZXCVBNMÖÇ"
+  ];
+  keyboardElem.innerHTML = "";
+  const keyButtons = {};
+  const keyState   = {};
+
+  kbLayout.forEach((row, idx) => {
+    const rowDiv = document.createElement("div");
+    rowDiv.className = "kb-row";
+
+    if (idx === 2) {
+      const enterBtn = createKey("ENTER", "ENTER", true);
+      rowDiv.appendChild(enterBtn);
+    }
+
+    for (const ch of row) {
+      const btn = createKey(ch, ch);
+      rowDiv.appendChild(btn);
+      keyButtons[ch] = btn;
+    }
+
+    if (idx === 2) {
+      const backBtn = createKey("⌫", "BACK", true);
+      rowDiv.appendChild(backBtn);
+    }
+
+    keyboardElem.appendChild(rowDiv);
+  });
+
+  function createKey(label, value, special=false) {
+    const btn = document.createElement("button");
+    btn.className = "key" + (special ? " special" : "");
+    btn.textContent = label;
+    btn.dataset.value = value;
+    btn.addEventListener("click", () => handleKey(value));
+    return btn;
+  }
+
+  window.addEventListener("keydown", onKeyDown);
+
+  function onKeyDown(e) {
+    if (finished) return;
+    const key = e.key;
+    if (key === "Enter") handleKey("ENTER");
+    else if (key === "Backspace") handleKey("BACK");
+    else {
+      const ch = key.toUpperCase();
+      if (/^[A-ZÇĞİÖŞÜ]$/.test(ch)) handleKey(ch);
+    }
+  }
+
+  function handleKey(key) {
+    if (finished) return;
+
+    if (key === "ENTER") {
+      submitGuess();
+      return;
+    }
+    if (key === "BACK") {
+      if (currentCol > 0) {
+        currentCol--;
+        setTile(currentRow, currentCol, "");
+      }
+      return;
+    }
+
+    if (currentCol >= COLS) return;
+    setTile(currentRow, currentCol, key);
+    currentCol++;
+  }
+
+  function submitGuess() {
+    if (finished) return;
+
+    const guess = getCurrentGuess();
+    if (guess.length < COLS) {
+      showStatus(`Kelime eksik. Bu kelime ${COLS} harfli.`, "#f97316");
+      return;
+    }
+
+    const upperGuess = guess.toUpperCase();
+
+    // gizli kelimeyle birebir aynı değilse sözlük kontrolü yap
+    if (upperGuess !== secretWord && typeof VALID_WORDS !== "undefined" && !VALID_WORDS.has(upperGuess)) {
+      showStatus("Bu kelime sözlükte yok gibi görünüyor.", "#f97316");
+      return;
+    }
+
+    const result = evaluateGuess(upperGuess, secretWord);
+    colorRow(currentRow, upperGuess, result);
+
+    if (upperGuess === secretWord) {
+      showStatus("Tebrikler, kelimeyi buldun! 🎉", "#22c55e");
+      finished = true;
+      return;
+    }
+
+    if (currentRow === ROWS - 1) {
+      showStatus(`Bitti! Gizli kelime: ${secretWord}`, "#f97316");
+      finished = true;
+      return;
+    }
+
+    currentRow++;
+    currentCol = 0;
+    showStatus("Yeni bir tahmin yap!");
+  }
+
+  function evaluateGuess(guess, secret) {
+    const res       = Array(COLS).fill("absent");
+    const secretArr = secret.split("");
+    const used      = new Array(COLS).fill(false);
+
+    for (let i = 0; i < COLS; i++) {
+      if (guess[i] === secret[i]) {
+        res[i] = "correct";
+        used[i] = true;
+      }
+    }
+    for (let i = 0; i < COLS; i++) {
+      if (res[i] === "correct") continue;
+      const ch = guess[i];
+      let found = false;
+      for (let j = 0; j < COLS; j++) {
+        if (!used[j] && secretArr[j] === ch) {
+          used[j] = true;
+          found = true;
+          break;
+        }
+      }
+      if (found) res[i] = "present";
+    }
+    return res;
+  }
+
+  function colorRow(rowIndex, guess, result) {
+    for (let c = 0; c < COLS; c++) {
+      const tile = tiles[rowIndex][c];
+      tile.classList.remove("tile-filled","tile-correct","tile-present","tile-absent");
+
+      const state = result[c];
+      tile.classList.add("tile-" + state);
+
+      const ch   = guess[c];
+      const prev = keyState[ch];
+      if (!prev || prev === "absent" || (prev === "present" && state === "correct")) {
+        keyState[ch] = state;
+        const btn = keyButtons[ch];
+        if (btn) {
+          btn.classList.remove("key-correct","key-present","key-absent");
+          if (state === "correct") btn.classList.add("key-correct");
+          else if (state === "present") btn.classList.add("key-present");
+          else btn.classList.add("key-absent");
+        }
+      }
+    }
+  }
+
+  showStatus("Kelimeyi tahmin etmeye başla!");
+}
+</script>
+</body>
+</html>
