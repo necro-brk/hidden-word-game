@@ -264,21 +264,64 @@
   </div>
 </div>
 
-<!-- 1) Kelime havuzu (VALID_WORDS ve WORDS_READY burada tanımlanıyor) -->
+<!-- 1) Kelime havuzu -->
 <script src="words_tr.js"></script>
 
 <!-- 2) Oyun kodu -->
 <script>
+const OBFUSCATION_SALT = "HiddenWord2025!";
+
 function getQueryParam(name) {
   const params = new URLSearchParams(window.location.search);
   return params.get(name);
 }
+
+// ---- Obfuscation helpers ----
+function obfuscate(word) {
+  const enc = new TextEncoder();
+  const saltBytes = enc.encode(OBFUSCATION_SALT);
+  const wordBytes = enc.encode(word);
+  const mixed = new Uint8Array(wordBytes.length);
+  for (let i = 0; i < wordBytes.length; i++) {
+    mixed[i] = wordBytes[i] ^ saltBytes[i % saltBytes.length];
+  }
+  // mixed -> base64
+  let bin = "";
+  for (let i = 0; i < mixed.length; i++) {
+    bin += String.fromCharCode(mixed[i]);
+  }
+  return btoa(bin);
+}
+
+function deobfuscate(payload) {
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+  const saltBytes = enc.encode(OBFUSCATION_SALT);
+  const bin = atob(payload);
+  const mixed = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) {
+    mixed[i] = bin.charCodeAt(i);
+  }
+  const wordBytes = new Uint8Array(mixed.length);
+  for (let i = 0; i < mixed.length; i++) {
+    wordBytes[i] = mixed[i] ^ saltBytes[i % saltBytes.length];
+  }
+  return dec.decode(wordBytes);
+}
+
+// ---- URL encode/decode ----
 function encodeSecret(word) {
-  return encodeURIComponent(word.toUpperCase());
+  const obf = obfuscate(word);         // karıştır + base64
+  return encodeURIComponent(obf);      // URL-safe
 }
 function decodeSecret(code) {
-  try { return decodeURIComponent(code || ""); }
-  catch(e) { return ""; }
+  if (!code) return "";
+  try {
+    const payload = decodeURIComponent(code);
+    return deobfuscate(payload);
+  } catch (e) {
+    return "";
+  }
 }
 
 let creatorSection, gameSection;
@@ -354,12 +397,12 @@ function startApp() {
     if (!/^[A-ZÇĞİÖŞÜ]+$/.test(secretWord) || secretWord.length < 2) {
       secretWord = "HATA";
     }
-    if (modeParam === "five" && secretWord.length !== 5) {
+    if ((getQueryParam("mode") || "free") === "five" && secretWord.length !== 5) {
       secretWord = secretWord.slice(0,5).padEnd(5, "A");
     }
 
     const modeLabel = document.getElementById("mode-label");
-    modeLabel.textContent = modeParam === "five"
+    modeLabel.textContent = (getQueryParam("mode") || "free") === "five"
       ? "Mod: Wordle (5 harfli kelime)"
       : "Mod: Serbest uzunluk";
 
@@ -505,7 +548,6 @@ function initGame(secretWord) {
 
     const upperGuess = guess.toUpperCase();
 
-    // gizli kelimeyle birebir aynı değilse sözlük kontrolü yap
     if (upperGuess !== secretWord && typeof VALID_WORDS !== "undefined" && !VALID_WORDS.has(upperGuess)) {
       showStatus("Bu kelime sözlükte yok gibi görünüyor.", "#f97316");
       return;
@@ -532,6 +574,7 @@ function initGame(secretWord) {
   }
 
   function evaluateGuess(guess, secret) {
+    const COLS = secret.length;
     const res       = Array(COLS).fill("absent");
     const secretArr = secret.split("");
     const used      = new Array(COLS).fill(false);
@@ -559,6 +602,7 @@ function initGame(secretWord) {
   }
 
   function colorRow(rowIndex, guess, result) {
+    const COLS = guess.length;
     for (let c = 0; c < COLS; c++) {
       const tile = tiles[rowIndex][c];
       tile.classList.remove("tile-filled","tile-correct","tile-present","tile-absent");
@@ -586,3 +630,4 @@ function initGame(secretWord) {
 </script>
 </body>
 </html>
+
