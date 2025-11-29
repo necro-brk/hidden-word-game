@@ -289,7 +289,7 @@
     <!-- Leaderboard -->
     <div id="leaderboard-panel">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <span style="font-size:13px;color:#e5e7eb;font-weight:600;">Leaderboard (bu cihaz)</span>
+        <span style="font-size:13px;color:#e5e7eb;font-weight:600;">Leaderboard (global)</span>
         <button id="change-name-btn" style="padding:4px 10px;font-size:11px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);box-shadow:none;">İsim değiştir</button>
       </div>
       <table>
@@ -302,7 +302,7 @@
           </tr>
         </thead>
         <tbody id="lb-body">
-          <tr><td colspan="4" style="padding:4px 4px;color:#6b7280;">Henüz kayıt yok.</td></tr>
+          <tr><td colspan="4" style="padding:4px 4px;color:#6b7280;">Leaderboard yükleniyor…</td></tr>
         </tbody>
       </table>
     </div>
@@ -312,444 +312,501 @@
 <!-- Kelime havuzu (VALID_WORDS + WORDS_READY burada tanımlanıyor) -->
 <script src="words_tr.js"></script>
 
-<!-- Oyun kodu -->
-<script>
-function getQueryParam(name) {
-  const params = new URLSearchParams(window.location.search);
-  return params.get(name);
-}
+<!-- Oyun + Firebase kodu -->
+<script type="module">
+  /*************** Firebase Kurulumu ***************
+   * 1) https://console.firebase.google.com üzerinden bir proje oluştur.
+   * 2) "Web App" ekle ve config nesnesini al.
+   * 3) Aşağıdaki firebaseConfig içini kendi değerlerinle doldur.
+   ************************************************/
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import {
+    getFirestore,
+    collection,
+    addDoc,
+    serverTimestamp,
+    query,
+    orderBy,
+    limit,
+    onSnapshot
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-/*
-  Kelimeyi URL'de gizlemek için basit sayısal obfuscation:
-  - Her karakterin charCode'unu alıyoruz
-  - Üzerine sabit bir "shift" ekliyoruz
-  - Ortaya çıkan sayıları "x" ile birleştiriyoruz
-  Örn: "BAŞKAN" -> "83x94x..." gibi, kelime çıplak okunmuyor.
-*/
-const SECRET_SHIFT = 37; // rastgele sabit
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY_HERE",
+    authDomain: "YOUR_AUTH_DOMAIN_HERE",
+    projectId: "YOUR_PROJECT_ID_HERE",
+    // aşağıdaki alanlar projene göre opsiyonel olabilir
+    storageBucket: "YOUR_STORAGE_BUCKET_HERE",
+    messagingSenderId: "YOUR_SENDER_ID_HERE",
+    appId: "YOUR_APP_ID_HERE"
+  };
 
-function encodeSecret(word) {
-  const parts = [];
-  for (let i = 0; i < word.length; i++) {
-    const code = word.charCodeAt(i) + SECRET_SHIFT;
-    parts.push(code);
-  }
-  return parts.join("x");
-}
-
-function decodeSecret(code) {
-  if (!code) return "";
-  const parts = code.split("x");
-  let result = "";
-  for (const p of parts) {
-    const n = parseInt(p, 10);
-    if (!Number.isNaN(n)) {
-      result += String.fromCharCode(n - SECRET_SHIFT);
-    }
-  }
-  return result;
-}
-
-/* === Leaderboard / Kullanıcı adı === */
-const LB_KEY = "hiddenWordLeaderboard_v1";
-const NAME_KEY = "hiddenWordPlayerName";
-let playerName = "";
-
-function loadPlayerName() {
-  if (playerName) return playerName;
-  const stored = localStorage.getItem(NAME_KEY);
-  if (stored) {
-    playerName = stored;
-    return playerName;
-  }
-  let name = prompt("Kullanıcı adını yaz (leaderboard için):", "") || "İsimsiz";
-  name = name.trim() || "İsimsiz";
-  playerName = name;
-  localStorage.setItem(NAME_KEY, name);
-  return name;
-}
-
-function changePlayerName() {
-  let name = prompt("Yeni kullanıcı adın:", playerName || "") || playerName || "İsimsiz";
-  name = name.trim() || "İsimsiz";
-  playerName = name;
-  localStorage.setItem(NAME_KEY, name);
-  alert("İsim güncellendi: " + name);
-}
-
-function getLeaderboard() {
+  let db = null;
+  let scoresCollection = null;
   try {
-    const raw = localStorage.getItem(LB_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    scoresCollection = collection(db, "scores");
   } catch (e) {
-    return [];
+    console.warn("Firebase init başarısız. Leaderboard devre dışı:", e);
   }
-}
 
-function saveLeaderboard(lb) {
-  localStorage.setItem(LB_KEY, JSON.stringify(lb));
-}
-
-function addScoreToLeaderboard(name, score, attempts, word) {
-  let lb = getLeaderboard();
-  lb.push({
-    name,
-    score,
-    attempts,
-    wordLength: word.length,
-    date: new Date().toISOString()
-  });
-  lb.sort((a, b) => b.score - a.score);
-  lb = lb.slice(0, 20); // en iyi 20 skor
-  saveLeaderboard(lb);
-  renderLeaderboard(lb);
-}
-
-function renderLeaderboard(lb) {
-  const tbody = document.getElementById("lb-body");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-  if (!lb.length) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = '<td colspan="4" style="padding:4px 4px;color:#6b7280;">Henüz kayıt yok.</td>';
-    tbody.appendChild(tr);
-    return;
+  /* ===== Util fonksiyonlar ===== */
+  function getQueryParam(name) {
+    const params = new URLSearchParams(window.location.search);
+    return params.get(name);
   }
-  lb.forEach((item, idx) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${idx + 1}</td>
-      <td>${item.name}</td>
-      <td style="text-align:right;">${item.score}</td>
-      <td style="text-align:right;">${item.attempts}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
 
-/* === Uygulama başlangıcı === */
-let creatorSection, gameSection;
+  // Kelime gizleme: charCode + sabit kaydırma
+  const SECRET_SHIFT = 37;
 
-window.addEventListener("load", async () => {
-  if (window.WORDS_READY) {
-    try { await window.WORDS_READY; } catch(e) {}
+  function encodeSecret(word) {
+    const parts = [];
+    for (let i = 0; i < word.length; i++) {
+      const code = word.charCodeAt(i) + SECRET_SHIFT;
+      parts.push(code);
+    }
+    return parts.join("x");
   }
-  startApp();
-});
 
-function startApp() {
-  creatorSection = document.getElementById("creator-section");
-  gameSection   = document.getElementById("game-section");
+  function decodeSecret(code) {
+    if (!code) return "";
+    const parts = code.split("x");
+    let result = "";
+    for (const p of parts) {
+      const n = parseInt(p, 10);
+      if (!Number.isNaN(n)) {
+        result += String.fromCharCode(n - SECRET_SHIFT);
+      }
+    }
+    return result;
+  }
 
-  const secretInput = document.getElementById("secret-input");
-  const modeSelect  = document.getElementById("mode-select");
-  const createBtn   = document.getElementById("create-link-btn");
-  const linkWrap    = document.getElementById("generated-link-wrap");
-  const linkInput   = document.getElementById("generated-link");
-  const copyBtn     = document.getElementById("copy-link-btn");
-  const changeNameBtn = document.getElementById("change-name-btn");
+  /* ===== Kullanıcı adı + Leaderboard ===== */
+  const NAME_KEY = "hiddenWordPlayerName_v1";
+  let playerName = "";
 
-  const codeParam = getQueryParam("code");
-  const modeParam = getQueryParam("mode") || "free";
+  function getPlayerName() {
+    if (playerName) return playerName;
+    const stored = localStorage.getItem(NAME_KEY);
+    if (stored) {
+      playerName = stored;
+      return playerName;
+    }
+    let name = prompt("Kullanıcı adını yaz (leaderboard için):", "") || "İsimsiz";
+    name = name.trim() || "İsimsiz";
+    playerName = name;
+    localStorage.setItem(NAME_KEY, name);
+    return name;
+  }
 
-  if (changeNameBtn) {
-    changeNameBtn.addEventListener("click", () => {
-      changePlayerName();
-      renderLeaderboard(getLeaderboard());
+  function changePlayerName() {
+    let name = prompt("Yeni kullanıcı adın:", playerName || "") || playerName || "İsimsiz";
+    name = name.trim() || "İsimsiz";
+    playerName = name;
+    localStorage.setItem(NAME_KEY, name);
+    alert("İsim güncellendi: " + name);
+  }
+
+  function renderLeaderboardFallback(message) {
+    const tbody = document.getElementById("lb-body");
+    if (!tbody) return;
+    tbody.innerHTML = `<tr><td colspan="4" style="padding:4px 4px;color:#f97316;">${message}</td></tr>`;
+  }
+
+  function renderLeaderboard(rows) {
+    const tbody = document.getElementById("lb-body");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="padding:4px 4px;color:#6b7280;">Henüz skor yok.</td></tr>';
+      return;
+    }
+    rows.forEach((item, idx) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td>${item.name || "İsimsiz"}</td>
+        <td style="text-align:right;">${item.score}</td>
+        <td style="text-align:right;">${item.attempts}</td>
+      `;
+      tbody.appendChild(tr);
     });
   }
 
-  // Link oluşturma modu
-  if (createBtn) {
-    createBtn.addEventListener("click", () => {
-      let word = (secretInput.value || "").trim().toUpperCase();
-      const mode = modeSelect.value;
+  async function addScoreToLeaderboard(name, score, attempts, word) {
+    if (!scoresCollection) {
+      console.warn("Leaderboard devrede değil, skor kaydedilmedi.");
+      return;
+    }
+    try {
+      await addDoc(scoresCollection, {
+        name,
+        score,
+        attempts,
+        wordLength: word.length,
+        createdAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.error("Skor yazılırken hata:", e);
+    }
+  }
 
-      if (!word) {
-        alert("Lütfen bir gizli kelime yaz.");
-        return;
-      }
+  function subscribeLeaderboard() {
+    if (!scoresCollection) {
+      renderLeaderboardFallback("Firebase yapılandırılmadı, leaderboard devre dışı.");
+      return;
+    }
+    try {
+      const q = query(
+        scoresCollection,
+        orderBy("score", "desc"),
+        orderBy("createdAt", "asc"),
+        limit(20)
+      );
+      onSnapshot(
+        q,
+        (snapshot) => {
+          const rows = [];
+          snapshot.forEach((doc) => rows.push(doc.data()));
+          renderLeaderboard(rows);
+        },
+        (error) => {
+          console.error("Leaderboard okunamadı:", error);
+          renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
+        }
+      );
+    } catch (e) {
+      console.error("Leaderboard subscribe hatası:", e);
+      renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
+    }
+  }
 
-      word = word.replace(/\s+/g, "");
+  /* ===== Uygulama başlangıcı ===== */
+  let creatorSection, gameSection;
 
-      if (mode === "five" && word.length !== 5) {
-        alert("Wordle modunda kelime 5 harfli olmalı.");
-        return;
-      }
+  window.addEventListener("load", async () => {
+    if (window.WORDS_READY) {
+      try { await window.WORDS_READY; } catch (e) {}
+    }
+    startApp();
+  });
 
-      if (!/^[A-ZÇĞİÖŞÜ]+$/.test(word)) {
-        if (!confirm("Kelimenizde harf dışı karakter var. Yine de kullanmak istiyor musun?")) {
+  function startApp() {
+    creatorSection = document.getElementById("creator-section");
+    gameSection   = document.getElementById("game-section");
+
+    const secretInput = document.getElementById("secret-input");
+    const modeSelect  = document.getElementById("mode-select");
+    const createBtn   = document.getElementById("create-link-btn");
+    const linkWrap    = document.getElementById("generated-link-wrap");
+    const linkInput   = document.getElementById("generated-link");
+    const copyBtn     = document.getElementById("copy-link-btn");
+    const changeNameBtn = document.getElementById("change-name-btn");
+
+    const codeParam = getQueryParam("code");
+    const modeParam = getQueryParam("mode") || "free";
+
+    if (changeNameBtn) {
+      changeNameBtn.addEventListener("click", () => {
+        changePlayerName();
+      });
+    }
+
+    // Link oluşturma modu
+    if (createBtn) {
+      createBtn.addEventListener("click", () => {
+        let word = (secretInput.value || "").trim().toUpperCase();
+        const mode = modeSelect.value;
+
+        if (!word) {
+          alert("Lütfen bir gizli kelime yaz.");
           return;
         }
+
+        word = word.replace(/\s+/g, "");
+
+        if (mode === "five" && word.length !== 5) {
+          alert("Wordle modunda kelime 5 harfli olmalı.");
+          return;
+        }
+
+        if (!/^[A-ZÇĞİÖŞÜ]+$/.test(word)) {
+          if (!confirm("Kelimenizde harf dışı karakter var. Yine de kullanmak istiyor musun?")) {
+            return;
+          }
+        }
+
+        const code = encodeSecret(word);
+        const url  = `${window.location.origin}${window.location.pathname}?code=${code}&mode=${mode}`;
+        linkInput.value = url;
+        linkWrap.style.display = "block";
+      });
+    }
+
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        linkInput.select();
+        document.execCommand("copy");
+        copyBtn.textContent = "Kopyalandı ✔";
+        setTimeout(() => copyBtn.textContent = "Kopyala", 1500);
+      });
+    }
+
+    // Tahmin modu
+    if (codeParam) {
+      creatorSection.style.display = "none";
+      gameSection.style.display    = "block";
+
+      // Kullanıcı adını hemen iste
+      setTimeout(() => { getPlayerName(); }, 50);
+
+      // Leaderboard’a bağlan
+      subscribeLeaderboard();
+
+      let secretWord = decodeSecret(codeParam).toUpperCase().replace(/\s+/g, "");
+      if (!/^[A-ZÇĞİÖŞÜ]+$/.test(secretWord) || secretWord.length < 2) {
+        secretWord = "HATA";
+      }
+      if (modeParam === "five" && secretWord.length !== 5) {
+        secretWord = secretWord.slice(0,5).padEnd(5, "A");
       }
 
-      const code = encodeSecret(word);
-      const url  = `${window.location.origin}${window.location.pathname}?code=${code}&mode=${mode}`;
-      linkInput.value = url;
-      linkWrap.style.display = "block";
+      const modeLabel = document.getElementById("mode-label");
+      modeLabel.textContent = modeParam === "five"
+        ? "Mod: Wordle (5 harfli kelime)"
+        : "Mod: Serbest uzunluk";
+
+      initGame(secretWord);
+    }
+  }
+
+  /* ===== Oyun Modu ===== */
+  function initGame(secretWord) {
+    const ROWS = 6;
+    const COLS = secretWord.length;
+
+    const boardElem    = document.getElementById("board");
+    const statusElem   = document.getElementById("status");
+    const keyboardElem = document.getElementById("keyboard");
+
+    boardElem.style.setProperty("--cols", COLS);
+
+    let currentRow = 0;
+    let currentCol = 0;
+    let finished   = false;
+
+    const tiles = [];
+    boardElem.innerHTML = "";
+    for (let r = 0; r < ROWS; r++) {
+      tiles[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        const tile  = document.createElement("div");
+        tile.className = "tile";
+        const inner = document.createElement("div");
+        inner.className = "tile-inner";
+        tile.appendChild(inner);
+        boardElem.appendChild(tile);
+        tiles[r][c] = tile;
+      }
+    }
+
+    function showStatus(msg, color) {
+      statusElem.textContent = msg;
+      statusElem.style.color = color || "#e5e7eb";
+    }
+
+    function getCurrentGuess() {
+      let guess = "";
+      for (let c = 0; c < COLS; c++) {
+        const ch = tiles[currentRow][c].querySelector(".tile-inner").textContent || "";
+        guess += ch;
+      }
+      return guess;
+    }
+
+    function setTile(r, c, ch) {
+      const tile  = tiles[r][c];
+      const inner = tile.querySelector(".tile-inner");
+      inner.textContent = ch;
+      if (ch) tile.classList.add("tile-filled");
+      else    tile.classList.remove("tile-filled");
+    }
+
+    // Sanal klavye
+    const kbLayout = [
+      "QWERTYUIOPĞÜ",
+      "ASDFGHJKLŞİ",
+      "ZXCVBNMÖÇ"
+    ];
+    keyboardElem.innerHTML = "";
+    const keyButtons = {};
+    const keyState   = {};
+
+    kbLayout.forEach((row, idx) => {
+      const rowDiv = document.createElement("div");
+      rowDiv.className = "kb-row";
+
+      if (idx === 2) {
+        const enterBtn = createKey("ENTER", "ENTER", true);
+        rowDiv.appendChild(enterBtn);
+      }
+
+      for (const ch of row) {
+        const btn = createKey(ch, ch);
+        rowDiv.appendChild(btn);
+        keyButtons[ch] = btn;
+      }
+
+      if (idx === 2) {
+        const backBtn = createKey("⌫", "BACK", true);
+        rowDiv.appendChild(backBtn);
+      }
+
+      keyboardElem.appendChild(rowDiv);
     });
-  }
 
-  if (copyBtn) {
-    copyBtn.addEventListener("click", () => {
-      linkInput.select();
-      document.execCommand("copy");
-      copyBtn.textContent = "Kopyalandı ✔";
-      setTimeout(() => copyBtn.textContent = "Kopyala", 1500);
-    });
-  }
-
-  // Tahmin modu mu?
-  if (codeParam) {
-    creatorSection.style.display = "none";
-    gameSection.style.display    = "block";
-
-    loadPlayerName();               // isim iste
-    renderLeaderboard(getLeaderboard()); // mevcut skorları göster
-
-    let secretWord = decodeSecret(codeParam).toUpperCase().replace(/\s+/g, "");
-    if (!/^[A-ZÇĞİÖŞÜ]+$/.test(secretWord) || secretWord.length < 2) {
-      secretWord = "HATA";
-    }
-    if (modeParam === "five" && secretWord.length !== 5) {
-      secretWord = secretWord.slice(0,5).padEnd(5, "A");
+    function createKey(label, value, special=false) {
+      const btn = document.createElement("button");
+      btn.className = "key" + (special ? " special" : "");
+      btn.textContent = label;
+      btn.dataset.value = value;
+      btn.addEventListener("click", () => handleKey(value));
+      return btn;
     }
 
-    const modeLabel = document.getElementById("mode-label");
-    modeLabel.textContent = modeParam === "five"
-      ? "Mod: Wordle (5 harfli kelime)"
-      : "Mod: Serbest uzunluk";
+    window.addEventListener("keydown", onKeyDown);
 
-    initGame(secretWord);
-  }
-}
-
-// ========== OYUN MODU ==========
-function initGame(secretWord) {
-  const ROWS = 6;
-  const COLS = secretWord.length;
-
-  const boardElem    = document.getElementById("board");
-  const statusElem   = document.getElementById("status");
-  const keyboardElem = document.getElementById("keyboard");
-
-  boardElem.style.setProperty("--cols", COLS);
-
-  let currentRow = 0;
-  let currentCol = 0;
-  let finished   = false;
-
-  const tiles = [];
-  boardElem.innerHTML = "";
-  for (let r = 0; r < ROWS; r++) {
-    tiles[r] = [];
-    for (let c = 0; c < COLS; c++) {
-      const tile  = document.createElement("div");
-      tile.className = "tile";
-      const inner = document.createElement("div");
-      inner.className = "tile-inner";
-      tile.appendChild(inner);
-      boardElem.appendChild(tile);
-      tiles[r][c] = tile;
-    }
-  }
-
-  function showStatus(msg, color) {
-    statusElem.textContent = msg;
-    statusElem.style.color = color || "#e5e7eb";
-  }
-
-  function getCurrentGuess() {
-    let guess = "";
-    for (let c = 0; c < COLS; c++) {
-      const ch = tiles[currentRow][c].querySelector(".tile-inner").textContent || "";
-      guess += ch;
-    }
-    return guess;
-  }
-
-  function setTile(r, c, ch) {
-    const tile  = tiles[r][c];
-    const inner = tile.querySelector(".tile-inner");
-    inner.textContent = ch;
-    if (ch) tile.classList.add("tile-filled");
-    else    tile.classList.remove("tile-filled");
-  }
-
-  // Sanal klavye
-  const kbLayout = [
-    "QWERTYUIOPĞÜ",
-    "ASDFGHJKLŞİ",
-    "ZXCVBNMÖÇ"
-  ];
-  keyboardElem.innerHTML = "";
-  const keyButtons = {};
-  const keyState   = {};
-
-  kbLayout.forEach((row, idx) => {
-    const rowDiv = document.createElement("div");
-    rowDiv.className = "kb-row";
-
-    if (idx === 2) {
-      const enterBtn = createKey("ENTER", "ENTER", true);
-      rowDiv.appendChild(enterBtn);
-    }
-
-    for (const ch of row) {
-      const btn = createKey(ch, ch);
-      rowDiv.appendChild(btn);
-      keyButtons[ch] = btn;
-    }
-
-    if (idx === 2) {
-      const backBtn = createKey("⌫", "BACK", true);
-      rowDiv.appendChild(backBtn);
-    }
-
-    keyboardElem.appendChild(rowDiv);
-  });
-
-  function createKey(label, value, special=false) {
-    const btn = document.createElement("button");
-    btn.className = "key" + (special ? " special" : "");
-    btn.textContent = label;
-    btn.dataset.value = value;
-    btn.addEventListener("click", () => handleKey(value));
-    return btn;
-  }
-
-  window.addEventListener("keydown", onKeyDown);
-
-  function onKeyDown(e) {
-    if (finished) return;
-    const key = e.key;
-    if (key === "Enter") handleKey("ENTER");
-    else if (key === "Backspace") handleKey("BACK");
-    else {
-      const ch = key.toUpperCase();
-      if (/^[A-ZÇĞİÖŞÜ]$/.test(ch)) handleKey(ch);
-    }
-  }
-
-  function handleKey(key) {
-    if (finished) return;
-
-    if (key === "ENTER") {
-      submitGuess();
-      return;
-    }
-    if (key === "BACK") {
-      if (currentCol > 0) {
-        currentCol--;
-        setTile(currentRow, currentCol, "");
-      }
-      return;
-    }
-
-    if (currentCol >= COLS) return;
-    setTile(currentRow, currentCol, key);
-    currentCol++;
-  }
-
-  function submitGuess() {
-    if (finished) return;
-
-    const guess = getCurrentGuess();
-    if (guess.length < COLS) {
-      showStatus(`Kelime eksik. Bu kelime ${COLS} harfli.`, "#f97316");
-      return;
-    }
-
-    const upperGuess = guess.toUpperCase();
-
-    if (upperGuess !== secretWord && typeof VALID_WORDS !== "undefined" && !VALID_WORDS.has(upperGuess)) {
-      showStatus("Bu kelime sözlükte yok gibi görünüyor.", "#f97316");
-      return;
-    }
-
-    const result = evaluateGuess(upperGuess, secretWord);
-    colorRow(currentRow, upperGuess, result);
-
-    if (upperGuess === secretWord) {
-      const attempts = currentRow + 1;
-      // Basit skor formülü: uzun kelime + az deneme = yüksek skor
-      const base = 1200;
-      const score = Math.max(
-        10,
-        base - (attempts - 1) * 150 - (secretWord.length - 3) * 20
-      );
-      const name = loadPlayerName();
-      addScoreToLeaderboard(name, score, attempts, secretWord);
-      showStatus(`Tebrikler, kelimeyi buldun! 🎉 Skorun: ${score}`, "#22c55e");
-      finished = true;
-      return;
-    }
-
-    if (currentRow === ROWS - 1) {
-      showStatus(`Bitti! Gizli kelime: ${secretWord}`, "#f97316");
-      finished = true;
-      return;
-    }
-
-    currentRow++;
-    currentCol = 0;
-    showStatus("Yeni bir tahmin yap!");
-  }
-
-  function evaluateGuess(guess, secret) {
-    const COLS = secret.length;
-    const res       = Array(COLS).fill("absent");
-    const secretArr = secret.split("");
-    const used      = new Array(COLS).fill(false);
-
-    for (let i = 0; i < COLS; i++) {
-      if (guess[i] === secret[i]) {
-        res[i] = "correct";
-        used[i] = true;
+    function onKeyDown(e) {
+      if (finished) return;
+      const key = e.key;
+      if (key === "Enter") handleKey("ENTER");
+      else if (key === "Backspace") handleKey("BACK");
+      else {
+        const ch = key.toUpperCase();
+        if (/^[A-ZÇĞİÖŞÜ]$/.test(ch)) handleKey(ch);
       }
     }
-    for (let i = 0; i < COLS; i++) {
-      if (res[i] === "correct") continue;
-      const ch = guess[i];
-      let found = false;
-      for (let j = 0; j < COLS; j++) {
-        if (!used[j] && secretArr[j] === ch) {
-          used[j] = true;
-          found = true;
-          break;
+
+    function handleKey(key) {
+      if (finished) return;
+
+      if (key === "ENTER") {
+        submitGuess();
+        return;
+      }
+      if (key === "BACK") {
+        if (currentCol > 0) {
+          currentCol--;
+          setTile(currentRow, currentCol, "");
+        }
+        return;
+      }
+
+      if (currentCol >= COLS) return;
+      setTile(currentRow, currentCol, key);
+      currentCol++;
+    }
+
+    function submitGuess() {
+      if (finished) return;
+
+      const guess = getCurrentGuess();
+      if (guess.length < COLS) {
+        showStatus(`Kelime eksik. Bu kelime ${COLS} harfli.`, "#f97316");
+        return;
+      }
+
+      const upperGuess = guess.toUpperCase();
+
+      if (upperGuess !== secretWord && typeof VALID_WORDS !== "undefined" && !VALID_WORDS.has(upperGuess)) {
+        showStatus("Bu kelime sözlükte yok gibi görünüyor.", "#f97316");
+        return;
+      }
+
+      const result = evaluateGuess(upperGuess, secretWord);
+      colorRow(currentRow, upperGuess, result);
+
+      if (upperGuess === secretWord) {
+        const attempts = currentRow + 1;
+        // Basit skor: uzun kelime + az deneme = yüksek skor
+        const base = 1200;
+        const score = Math.max(
+          10,
+          base - (attempts - 1) * 150 - (secretWord.length - 3) * 20
+        );
+        const name = getPlayerName();
+        addScoreToLeaderboard(name, score, attempts, secretWord);
+        showStatus(`Tebrikler, kelimeyi buldun! 🎉 Skorun: ${score}`, "#22c55e");
+        finished = true;
+        return;
+      }
+
+      if (currentRow === ROWS - 1) {
+        showStatus(`Bitti! Gizli kelime: ${secretWord}`, "#f97316");
+        finished = true;
+        return;
+      }
+
+      currentRow++;
+      currentCol = 0;
+      showStatus("Yeni bir tahmin yap!");
+    }
+
+    function evaluateGuess(guess, secret) {
+      const COLS = secret.length;
+      const res       = Array(COLS).fill("absent");
+      const secretArr = secret.split("");
+      const used      = new Array(COLS).fill(false);
+
+      for (let i = 0; i < COLS; i++) {
+        if (guess[i] === secret[i]) {
+          res[i] = "correct";
+          used[i] = true;
         }
       }
-      if (found) res[i] = "present";
+      for (let i = 0; i < COLS; i++) {
+        if (res[i] === "correct") continue;
+        const ch = guess[i];
+        let found = false;
+        for (let j = 0; j < COLS; j++) {
+          if (!used[j] && secretArr[j] === ch) {
+            used[j] = true;
+            found = true;
+            break;
+          }
+        }
+        if (found) res[i] = "present";
+      }
+      return res;
     }
-    return res;
-  }
 
-  function colorRow(rowIndex, guess, result) {
-    const COLS = guess.length;
-    for (let c = 0; c < COLS; c++) {
-      const tile = tiles[rowIndex][c];
-      tile.classList.remove("tile-filled","tile-correct","tile-present","tile-absent");
+    function colorRow(rowIndex, guess, result) {
+      const COLS = guess.length;
+      for (let c = 0; c < COLS; c++) {
+        const tile = tiles[rowIndex][c];
+        tile.classList.remove("tile-filled","tile-correct","tile-present","tile-absent");
 
-      const state = result[c];
-      tile.classList.add("tile-" + state);
+        const state = result[c];
+        tile.classList.add("tile-" + state);
 
-      const ch   = guess[c];
-      const prev = keyState[ch];
-      if (!prev || prev === "absent" || (prev === "present" && state === "correct")) {
-        keyState[ch] = state;
-        const btn = keyButtons[ch];
-        if (btn) {
-          btn.classList.remove("key-correct","key-present","key-absent");
-          if (state === "correct") btn.classList.add("key-correct");
-          else if (state === "present") btn.classList.add("key-present");
-          else btn.classList.add("key-absent");
+        const ch   = guess[c];
+        const prev = keyState[ch];
+        if (!prev || prev === "absent" || (prev === "present" && state === "correct")) {
+          keyState[ch] = state;
+          const btn = keyButtons[ch];
+          if (btn) {
+            btn.classList.remove("key-correct","key-present","key-absent");
+            if (state === "correct") btn.classList.add("key-correct");
+            else if (state === "present") btn.classList.add("key-present");
+            else btn.classList.add("key-absent");
+          }
         }
       }
     }
-  }
 
-  showStatus("Kelimeyi tahmin etmeye başla!");
-}
+    showStatus("Kelimeyi tahmin etmeye başla!");
+  }
 </script>
 </body>
 </html>
