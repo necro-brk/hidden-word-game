@@ -214,6 +214,29 @@
     font-size: 11px;
     color: #9ca3af;
   }
+  #leaderboard-panel {
+    margin-top: 14px;
+    border-top: 1px solid #1f2937;
+    padding-top: 10px;
+  }
+  #leaderboard-panel table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  #leaderboard-panel th,
+  #leaderboard-panel td {
+    padding: 3px 4px;
+  }
+  #leaderboard-panel th {
+    color: #9ca3af;
+    font-weight: 600;
+    text-align: left;
+  }
+  #leaderboard-panel td {
+    color: #e5e7eb;
+    border-top: 1px solid #020617;
+  }
   @media (max-width: 600px) {
     #board { max-width: 100%; }
   }
@@ -262,10 +285,31 @@
     <div id="board"></div>
     <div id="keyboard"></div>
     <div id="helper">Klavyeden yazabilirsin · ENTER ile gönder, BACKSPACE ile sil.</div>
+
+    <!-- Leaderboard -->
+    <div id="leaderboard-panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:13px;color:#e5e7eb;font-weight:600;">Leaderboard (bu cihaz)</span>
+        <button id="change-name-btn" style="padding:4px 10px;font-size:11px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);box-shadow:none;">İsim değiştir</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:32px;">#</th>
+            <th>İsim</th>
+            <th style="text-align:right;width:70px;">Skor</th>
+            <th style="text-align:right;width:70px;">Deneme</th>
+          </tr>
+        </thead>
+        <tbody id="lb-body">
+          <tr><td colspan="4" style="padding:4px 4px;color:#6b7280;">Henüz kayıt yok.</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
-<!-- Kelime havuzu (VALID_WORDS + WORDS_READY burada) -->
+<!-- Kelime havuzu (VALID_WORDS + WORDS_READY burada tanımlanıyor) -->
 <script src="words_tr.js"></script>
 
 <!-- Oyun kodu -->
@@ -280,7 +324,7 @@ function getQueryParam(name) {
   - Her karakterin charCode'unu alıyoruz
   - Üzerine sabit bir "shift" ekliyoruz
   - Ortaya çıkan sayıları "x" ile birleştiriyoruz
-  Örn: "BAŞKAN" -> "83x82x..." gibi, kelime çıplak okunmuyor.
+  Örn: "BAŞKAN" -> "83x94x..." gibi, kelime çıplak okunmuyor.
 */
 const SECRET_SHIFT = 37; // rastgele sabit
 
@@ -306,9 +350,86 @@ function decodeSecret(code) {
   return result;
 }
 
+/* === Leaderboard / Kullanıcı adı === */
+const LB_KEY = "hiddenWordLeaderboard_v1";
+const NAME_KEY = "hiddenWordPlayerName";
+let playerName = "";
+
+function loadPlayerName() {
+  if (playerName) return playerName;
+  const stored = localStorage.getItem(NAME_KEY);
+  if (stored) {
+    playerName = stored;
+    return playerName;
+  }
+  let name = prompt("Kullanıcı adını yaz (leaderboard için):", "") || "İsimsiz";
+  name = name.trim() || "İsimsiz";
+  playerName = name;
+  localStorage.setItem(NAME_KEY, name);
+  return name;
+}
+
+function changePlayerName() {
+  let name = prompt("Yeni kullanıcı adın:", playerName || "") || playerName || "İsimsiz";
+  name = name.trim() || "İsimsiz";
+  playerName = name;
+  localStorage.setItem(NAME_KEY, name);
+  alert("İsim güncellendi: " + name);
+}
+
+function getLeaderboard() {
+  try {
+    const raw = localStorage.getItem(LB_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveLeaderboard(lb) {
+  localStorage.setItem(LB_KEY, JSON.stringify(lb));
+}
+
+function addScoreToLeaderboard(name, score, attempts, word) {
+  let lb = getLeaderboard();
+  lb.push({
+    name,
+    score,
+    attempts,
+    wordLength: word.length,
+    date: new Date().toISOString()
+  });
+  lb.sort((a, b) => b.score - a.score);
+  lb = lb.slice(0, 20); // en iyi 20 skor
+  saveLeaderboard(lb);
+  renderLeaderboard(lb);
+}
+
+function renderLeaderboard(lb) {
+  const tbody = document.getElementById("lb-body");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  if (!lb.length) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td colspan="4" style="padding:4px 4px;color:#6b7280;">Henüz kayıt yok.</td>';
+    tbody.appendChild(tr);
+    return;
+  }
+  lb.forEach((item, idx) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${idx + 1}</td>
+      <td>${item.name}</td>
+      <td style="text-align:right;">${item.score}</td>
+      <td style="text-align:right;">${item.attempts}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+/* === Uygulama başlangıcı === */
 let creatorSection, gameSection;
 
-// SAYFA YÜKLENİNCE: önce kelimeler yüklensin, sonra uygulama başlasın
 window.addEventListener("load", async () => {
   if (window.WORDS_READY) {
     try { await window.WORDS_READY; } catch(e) {}
@@ -326,9 +447,17 @@ function startApp() {
   const linkWrap    = document.getElementById("generated-link-wrap");
   const linkInput   = document.getElementById("generated-link");
   const copyBtn     = document.getElementById("copy-link-btn");
+  const changeNameBtn = document.getElementById("change-name-btn");
 
   const codeParam = getQueryParam("code");
   const modeParam = getQueryParam("mode") || "free";
+
+  if (changeNameBtn) {
+    changeNameBtn.addEventListener("click", () => {
+      changePlayerName();
+      renderLeaderboard(getLeaderboard());
+    });
+  }
 
   // Link oluşturma modu
   if (createBtn) {
@@ -374,6 +503,9 @@ function startApp() {
   if (codeParam) {
     creatorSection.style.display = "none";
     gameSection.style.display    = "block";
+
+    loadPlayerName();               // isim iste
+    renderLeaderboard(getLeaderboard()); // mevcut skorları göster
 
     let secretWord = decodeSecret(codeParam).toUpperCase().replace(/\s+/g, "");
     if (!/^[A-ZÇĞİÖŞÜ]+$/.test(secretWord) || secretWord.length < 2) {
@@ -539,7 +671,16 @@ function initGame(secretWord) {
     colorRow(currentRow, upperGuess, result);
 
     if (upperGuess === secretWord) {
-      showStatus("Tebrikler, kelimeyi buldun! 🎉", "#22c55e");
+      const attempts = currentRow + 1;
+      // Basit skor formülü: uzun kelime + az deneme = yüksek skor
+      const base = 1200;
+      const score = Math.max(
+        10,
+        base - (attempts - 1) * 150 - (secretWord.length - 3) * 20
+      );
+      const name = loadPlayerName();
+      addScoreToLeaderboard(name, score, attempts, secretWord);
+      showStatus(`Tebrikler, kelimeyi buldun! 🎉 Skorun: ${score}`, "#22c55e");
       finished = true;
       return;
     }
