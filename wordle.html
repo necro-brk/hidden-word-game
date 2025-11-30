@@ -544,43 +544,73 @@ function subscribeLeaderboard(gameId) {
     }
         // Solo mod: rastgele kelime ile kendi başına oyna
     // Solo mod: rastgele kelime ile kendi başına oyna
-    if (soloStartBtn) {
-      soloStartBtn.addEventListener("click", async () => {
-        // Kelime listesi asenkron yükleniyorsa onu bekle
-        if (window.WORDS_READY) {
-          try {
-            await window.WORDS_READY;
-          } catch (e) {
-            console.error("Kelime listesi yüklenirken hata:", e);
-          }
-        }
+if (soloStartBtn) {
+  soloStartBtn.addEventListener("click", async () => {
+    // Kelime listesi asenkron yükleniyorsa onu bekle
+    if (window.WORDS_READY) {
+      try {
+        await window.WORDS_READY;
+      } catch (e) {
+        console.error("Kelime listesi yüklenirken hata:", e);
+      }
+    }
 
-        let allWords = [];
-        if (window.VALID_WORDS && window.VALID_WORDS.size) {
-          allWords = Array.from(window.VALID_WORDS);
-        }
+    let allWords = [];
 
-        if (!allWords.length) {
-          alert("Kelime listesi yüklenemedi, lütfen sayfayı yenilemeyi dene.");
-          return;
-        }
+    // VALID_WORDS nasıl tanımlandıysa ona göre oku
+    if (window.VALID_WORDS) {
+      if (Array.isArray(window.VALID_WORDS)) {
+        // VALID_WORDS bir dizi ise
+        allWords = window.VALID_WORDS.slice();
+      } else if (typeof window.VALID_WORDS.size === "number") {
+        // VALID_WORDS bir Set ise
+        allWords = Array.from(window.VALID_WORDS);
+      }
+    }
 
-        const mode = modeSelect ? modeSelect.value : "free";
+    if (!allWords.length) {
+      alert("Kelime listesi yüklenemedi, lütfen sayfayı yenilemeyi dene.");
+      return;
+    }
 
-        // Moda göre filtrele
-        let candidates = allWords;
-        if (mode === "five") {
-          candidates = candidates.filter(w => w.length === 5);
-        }
+    const mode = modeSelect ? modeSelect.value : "free";
 
-        if (!candidates.length) {
-          alert("Bu mod için uygun kelime bulunamadı.");
-          return;
-        }
+    // Moda göre filtrele
+    let candidates = allWords;
+    if (mode === "five") {
+      candidates = candidates.filter(w => w.length === 5);
+    }
 
-        // Rastgele kelime seç
-        const randomIndex = Math.floor(Math.random() * candidates.length);
-        const secretWord  = candidates[randomIndex].toUpperCase();
+    if (!candidates.length) {
+      alert("Bu mod için uygun kelime bulunamadı.");
+      return;
+    }
+
+    // Rastgele kelime seç
+    const randomIndex = Math.floor(Math.random() * candidates.length);
+    const secretWord  = candidates[randomIndex].toUpperCase();
+
+    CURRENT_GAME_ID = `solo-${mode}`;
+
+    const url = new URL(window.location.href);
+    url.search = "";
+    window.history.pushState({}, "", url.toString());
+
+    if (creatorSection) creatorSection.style.display = "none";
+    if (gameSection)    gameSection.style.display    = "block";
+
+    const modeLabel = document.getElementById("mode-label");
+    if (modeLabel) {
+      modeLabel.textContent = mode === "five"
+        ? "Mod: Wordle (5 harfli kelime) – Solo"
+        : "Mod: Serbest uzunluk – Solo";
+    }
+
+    subscribeLeaderboard(CURRENT_GAME_ID);
+    initGame(secretWord, CURRENT_GAME_ID);
+  });
+}
+
 
         // Solo mod için ortak gameId (leaderboard ayrı tutulsun diye mode’a göre)
         CURRENT_GAME_ID = `solo-${mode}`;
@@ -930,6 +960,7 @@ function subscribeLeaderboard(gameId) {
 </script>
 </body>
 </html>
+
 
 
 
