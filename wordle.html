@@ -378,12 +378,20 @@
       .toUpperCase();
   }
 
-  // Klavye tuşunu normalize et (i / ı dahil)
+  // Kullanıcı inputunu normalize et (klavye)
   function normalizeKey(key) {
     if (!key) return "";
     if (key === "i" || key === "İ") return "İ";
     if (key === "ı" || key === "I") return "I";
     return key.toUpperCase();
+  }
+
+  // Sözlük karşılaştırması için normalize et (İ/I sorununu çözer)
+  function canonWord(str) {
+    return str
+      .replace(/İ/g, "i")
+      .replace(/I/g, "ı")
+      .toLowerCase();
   }
 
   /* ===== Küçük yardımcılar ===== */
@@ -845,19 +853,24 @@
       }
 
       const upperGuess = trUpper(guess);
-      const lowerGuess = upperGuess.toLowerCase();
+      const canonLower = canonWord(upperGuess);
+      const canonUpper = canonLower.toUpperCase();
 
-      // Sözlük kontrolü (Set veya Array, case-insensitive)
+      // Sözlük kontrolü (Set veya Array, Türkçe i/ı ve büyük-küçük duyarsız)
       let inDict = true;
       if (typeof VALID_WORDS !== "undefined" && VALID_WORDS) {
         if (VALID_WORDS instanceof Set || typeof VALID_WORDS.has === "function") {
           inDict =
             VALID_WORDS.has(upperGuess) ||
-            VALID_WORDS.has(lowerGuess);
+            VALID_WORDS.has(upperGuess.toLowerCase()) ||
+            VALID_WORDS.has(canonLower) ||
+            VALID_WORDS.has(canonUpper);
         } else if (Array.isArray(VALID_WORDS)) {
           inDict =
             VALID_WORDS.includes(upperGuess) ||
-            VALID_WORDS.includes(lowerGuess);
+            VALID_WORDS.includes(upperGuess.toLowerCase()) ||
+            VALID_WORDS.includes(canonLower) ||
+            VALID_WORDS.includes(canonUpper);
         }
       }
 
