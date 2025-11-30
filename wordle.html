@@ -274,10 +274,18 @@
 
   <!-- Oyun bölümü -->
   <div id="game-section" class="panel" style="display:none;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-      <div class="badge">Tahmin modu</div>
-      <div id="mode-label" style="font-size:12px;color:#9ca3af;"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="badge">Tahmin modu</div>
+        <div id="mode-label" style="font-size:12px;color:#9ca3af;"></div>
+      </div>
+      <!-- Yeni oyun butonu -->
+      <button id="new-game-btn"
+              style="padding:6px 10px;font-size:11px;background:linear-gradient(135deg,#f97316,#ea580c);box-shadow:none;">
+        Yeni oyun oluştur
+      </button>
     </div>
+
 
     <div id="status"></div>
     <div id="board"></div>
@@ -503,6 +511,8 @@ function subscribeLeaderboard(gameId) {
     const linkInput     = document.getElementById("generated-link");
     const copyBtn       = document.getElementById("copy-link-btn");
     const changeNameBtn = document.getElementById("change-name-btn");
+    const newGameBtn    = document.getElementById("new-game-btn");
+
 
     const codeParam = getQueryParam("code");
     const modeParam = getQueryParam("mode") || "free";
@@ -512,6 +522,30 @@ function subscribeLeaderboard(gameId) {
         changePlayerName();
       });
     }
+        // Yeni oyun oluştur butonu:
+    if (newGameBtn) {
+      newGameBtn.addEventListener("click", () => {
+        // URL'den code & mode parametrelerini temizle
+        const url = new URL(window.location.href);
+        url.search = ""; // ?code=...&mode=... kısmını komple siliyoruz
+        window.history.pushState({}, "", url.toString());
+
+        // Formu sıfırla
+        if (secretInput) secretInput.value = "";
+        if (modeSelect) modeSelect.value = "free";
+
+        // Paneller: giriş ekranı açık, oyun ekranı kapalı
+        if (creatorSection) creatorSection.style.display = "block";
+        if (gameSection)    gameSection.style.display    = "none";
+
+        // Leaderboard tablosunu da "yükleniyor" haline alalım
+        const tbody = document.getElementById("lb-body");
+        if (tbody) {
+          tbody.innerHTML = '<tr><td colspan="4" style="padding:4px 4px;color:#6b7280;">Leaderboard yükleniyor…</td></tr>';
+        }
+      });
+    }
+
 
     // Link oluşturma modu
     if (createBtn) {
@@ -808,4 +842,5 @@ function subscribeLeaderboard(gameId) {
 </script>
 </body>
 </html>
+
 
