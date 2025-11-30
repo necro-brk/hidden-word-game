@@ -302,7 +302,6 @@
       </button>
     </div>
 
-
     <div id="status"></div>
     <div id="board"></div>
     <div id="keyboard"></div>
@@ -349,18 +348,15 @@
     onSnapshot
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-
-
-  // ⚠️ BURAYI KENDİ FIREBASE CONFIG'İNLE DOLDUR
-const firebaseConfig = {
-  apiKey: "AIzaSyAcKlwqRKpzjJTTp_WptQNxuKLRcJXqH6Y",
-  authDomain: "hidden-word-game.firebaseapp.com",
-  projectId: "hidden-word-game",
-  storageBucket: "hidden-word-game.firebasestorage.app",
-  messagingSenderId: "958945265776",
-  appId: "1:958945265776:web:1e57bd1b444912b15fccb5",
-  measurementId: "G-2QG1KPS68L"
-};
+  const firebaseConfig = {
+    apiKey: "AIzaSyAcKlwqRKpzjJTTp_WptQNxuKLRcJXqH6Y",
+    authDomain: "hidden-word-game.firebaseapp.com",
+    projectId: "hidden-word-game",
+    storageBucket: "hidden-word-game.firebaseapp.com",
+    messagingSenderId: "958945265776",
+    appId: "1:958945265776:web:1e57bd1b444912b15fccb5",
+    measurementId: "G-2QG1KPS68L"
+  };
 
   let db = null;
   let scoresCollection = null;
@@ -467,47 +463,44 @@ const firebaseConfig = {
     }
   }
 
-function subscribeLeaderboard(gameId) {
-  if (!scoresCollection) {
-    renderLeaderboardFallback("Firebase yapılandırılmadı, leaderboard devre dışı.");
-    return;
+  function subscribeLeaderboard(gameId) {
+    if (!scoresCollection) {
+      renderLeaderboardFallback("Firebase yapılandırılmadı, leaderboard devre dışı.");
+      return;
+    }
+    try {
+      const q = query(
+        scoresCollection,
+        where("gameId", "==", gameId),
+        limit(100)
+      );
+
+      onSnapshot(
+        q,
+        (snapshot) => {
+          const rows = [];
+          snapshot.forEach((doc) => rows.push(doc.data()));
+
+          rows.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            const ta = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
+            const tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
+            return ta - tb;
+          });
+
+          renderLeaderboard(rows);
+        },
+        (error) => {
+          console.error("Leaderboard okunamadı:", error);
+          renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
+        }
+      );
+    } catch (e) {
+      console.error("Leaderboard subscribe hatası:", e);
+      renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
+    }
   }
-  try {
-    // Sadece gameId ile filtreliyoruz, sıralamayı JS tarafında yapacağız
-    const q = query(
-      scoresCollection,
-      where("gameId", "==", gameId),
-      limit(100) // bu link için en fazla 100 skor çekelim, fazlası zaten gereksiz
-    );
 
-    onSnapshot(
-      q,
-      (snapshot) => {
-        const rows = [];
-        snapshot.forEach((doc) => rows.push(doc.data()));
-
-        // JS tarafında skor DESC, tarih ASC sıralama
-        rows.sort((a, b) => {
-          if (b.score !== a.score) return b.score - a.score;
-
-          const ta = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
-          const tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
-          return ta - tb;
-        });
-
-        console.log("Leaderboard rows for gameId", gameId, rows);
-        renderLeaderboard(rows);
-      },
-      (error) => {
-        console.error("Leaderboard okunamadı:", error);
-        renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
-      }
-    );
-  } catch (e) {
-    console.error("Leaderboard subscribe hatası:", e);
-    renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
-  }
-}
   /* ===== App başlangıcı ===== */
   let creatorSection, gameSection;
 
@@ -532,8 +525,6 @@ function subscribeLeaderboard(gameId) {
     const newGameBtn    = document.getElementById("new-game-btn");
     const soloStartBtn  = document.getElementById("solo-start-btn");
 
-
-
     const codeParam = getQueryParam("code");
     const modeParam = getQueryParam("mode") || "free";
 
@@ -542,85 +533,55 @@ function subscribeLeaderboard(gameId) {
         changePlayerName();
       });
     }
-        // Solo mod: rastgele kelime ile kendi başına oyna
-    // Solo mod: rastgele kelime ile kendi başına oyna
-if (soloStartBtn) {
-  soloStartBtn.addEventListener("click", async () => {
-    // Kelime listesi asenkron yükleniyorsa onu bekle
-    if (window.WORDS_READY) {
-      try {
-        await window.WORDS_READY;
-      } catch (e) {
-        console.error("Kelime listesi yüklenirken hata:", e);
-      }
-    }
 
-    let allWords = [];
+    /* ===== SOLO MOD ===== */
+    if (soloStartBtn) {
+      soloStartBtn.addEventListener("click", async () => {
+        if (window.WORDS_READY) {
+          try {
+            await window.WORDS_READY;
+          } catch (e) {
+            console.error("Kelime listesi yüklenirken hata:", e);
+          }
+        }
 
-    // VALID_WORDS nasıl tanımlandıysa ona göre oku
-    if (window.VALID_WORDS) {
-      if (Array.isArray(window.VALID_WORDS)) {
-        // VALID_WORDS bir dizi ise
-        allWords = window.VALID_WORDS.slice();
-      } else if (typeof window.VALID_WORDS.size === "number") {
-        // VALID_WORDS bir Set ise
-        allWords = Array.from(window.VALID_WORDS);
-      }
-    }
+        let allWords = [];
 
-    if (!allWords.length) {
-      alert("Kelime listesi yüklenemedi, lütfen sayfayı yenilemeyi dene.");
-      return;
-    }
+        // VALID_WORDS global değişkenini oku (Set ya da Array olabilir)
+        if (typeof VALID_WORDS !== "undefined") {
+          if (Array.isArray(VALID_WORDS)) {
+            allWords = VALID_WORDS.slice();
+          } else if (VALID_WORDS instanceof Set || typeof VALID_WORDS.has === "function") {
+            allWords = Array.from(VALID_WORDS);
+          }
+        }
 
-    const mode = modeSelect ? modeSelect.value : "free";
+        if (!allWords.length) {
+          alert("Kelime listesi yüklenemedi, lütfen sayfayı yenilemeyi dene.");
+          return;
+        }
 
-    // Moda göre filtrele
-    let candidates = allWords;
-    if (mode === "five") {
-      candidates = candidates.filter(w => w.length === 5);
-    }
+        const mode = modeSelect ? modeSelect.value : "free";
 
-    if (!candidates.length) {
-      alert("Bu mod için uygun kelime bulunamadı.");
-      return;
-    }
+        let candidates = allWords;
+        if (mode === "five") {
+          candidates = candidates.filter(w => w.length === 5);
+        }
 
-    // Rastgele kelime seç
-    const randomIndex = Math.floor(Math.random() * candidates.length);
-    const secretWord  = candidates[randomIndex].toUpperCase();
+        if (!candidates.length) {
+          alert("Bu mod için uygun kelime bulunamadı.");
+          return;
+        }
 
-    CURRENT_GAME_ID = `solo-${mode}`;
+        const randomIndex = Math.floor(Math.random() * candidates.length);
+        const secretWord  = candidates[randomIndex].toUpperCase();
 
-    const url = new URL(window.location.href);
-    url.search = "";
-    window.history.pushState({}, "", url.toString());
-
-    if (creatorSection) creatorSection.style.display = "none";
-    if (gameSection)    gameSection.style.display    = "block";
-
-    const modeLabel = document.getElementById("mode-label");
-    if (modeLabel) {
-      modeLabel.textContent = mode === "five"
-        ? "Mod: Wordle (5 harfli kelime) – Solo"
-        : "Mod: Serbest uzunluk – Solo";
-    }
-
-    subscribeLeaderboard(CURRENT_GAME_ID);
-    initGame(secretWord, CURRENT_GAME_ID);
-  });
-}
-
-
-        // Solo mod için ortak gameId (leaderboard ayrı tutulsun diye mode’a göre)
         CURRENT_GAME_ID = `solo-${mode}`;
 
-        // URL parametrelerini temizle
         const url = new URL(window.location.href);
         url.search = "";
         window.history.pushState({}, "", url.toString());
 
-        // Panelleri ayarla
         if (creatorSection) creatorSection.style.display = "none";
         if (gameSection)    gameSection.style.display    = "block";
 
@@ -631,32 +592,25 @@ if (soloStartBtn) {
             : "Mod: Serbest uzunluk – Solo";
         }
 
-        // Bu solo mod için leaderboard
+        getPlayerName();           // solo modda da isim hazır olsun
         subscribeLeaderboard(CURRENT_GAME_ID);
-
-        // Oyunu başlat
         initGame(secretWord, CURRENT_GAME_ID);
       });
     }
 
-
-        // Yeni oyun oluştur butonu:
+    /* ===== Yeni oyun butonu ===== */
     if (newGameBtn) {
       newGameBtn.addEventListener("click", () => {
-        // URL'den code & mode parametrelerini temizle
         const url = new URL(window.location.href);
-        url.search = ""; // ?code=...&mode=... kısmını komple siliyoruz
+        url.search = "";
         window.history.pushState({}, "", url.toString());
 
-        // Formu sıfırla
         if (secretInput) secretInput.value = "";
-        if (modeSelect) modeSelect.value = "free";
+        if (modeSelect)  modeSelect.value  = "free";
 
-        // Paneller: giriş ekranı açık, oyun ekranı kapalı
         if (creatorSection) creatorSection.style.display = "block";
         if (gameSection)    gameSection.style.display    = "none";
 
-        // Leaderboard tablosunu da "yükleniyor" haline alalım
         const tbody = document.getElementById("lb-body");
         if (tbody) {
           tbody.innerHTML = '<tr><td colspan="4" style="padding:4px 4px;color:#6b7280;">Leaderboard yükleniyor…</td></tr>';
@@ -664,8 +618,7 @@ if (soloStartBtn) {
       });
     }
 
-
-    // Link oluşturma modu
+    /* ===== Link oluşturma modu ===== */
     if (createBtn) {
       createBtn.addEventListener("click", () => {
         let word = (secretInput.value || "").trim().toUpperCase();
@@ -705,7 +658,7 @@ if (soloStartBtn) {
       });
     }
 
-    // Tahmin modu
+    /* ===== Tahmin modu (arkadaş linki) ===== */
     if (codeParam) {
       CURRENT_GAME_ID = `${modeParam}:${codeParam}`;
 
@@ -870,7 +823,11 @@ if (soloStartBtn) {
 
       const upperGuess = guess.toUpperCase();
 
-      if (upperGuess !== secretWord && typeof VALID_WORDS !== "undefined" && !VALID_WORDS.has(upperGuess)) {
+      if (upperGuess !== secretWord &&
+          typeof VALID_WORDS !== "undefined" &&
+          VALID_WORDS &&
+          typeof VALID_WORDS.has === "function" &&
+          !VALID_WORDS.has(upperGuess)) {
         showStatus("Bu kelime sözlükte yok gibi görünüyor.", "#f97316");
         return;
       }
@@ -960,8 +917,3 @@ if (soloStartBtn) {
 </script>
 </body>
 </html>
-
-
-
-
-
