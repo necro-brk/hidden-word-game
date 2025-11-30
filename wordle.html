@@ -372,18 +372,18 @@
 
   /* ===== Türkçe büyük harfe çevirme yardımcıları ===== */
   function trUpper(str) {
-    // önce i / ı dönüşümlerini yap, sonra klasik upper
     return str
       .replace(/i/g, "İ")
       .replace(/ı/g, "I")
       .toUpperCase();
   }
 
-  function trUpperChar(ch) {
-    if (!ch) return "";
-    if (ch === "i") return "İ";
-    if (ch === "ı") return "I";
-    return trUpper(ch).charAt(0);
+  // Klavye tuşunu normalize et (i / ı dahil)
+  function normalizeKey(key) {
+    if (!key) return "";
+    if (key === "i" || key === "İ") return "İ";
+    if (key === "ı" || key === "I") return "I";
+    return key.toUpperCase();
   }
 
   /* ===== Küçük yardımcılar ===== */
@@ -802,11 +802,16 @@
     function onKeyDown(e) {
       if (finished) return;
       const key = e.key;
-      if (key === "Enter") handleKey("ENTER");
-      else if (key === "Backspace") handleKey("BACK");
-      else {
-        const ch = trUpperChar(key);
-        if (/^[A-ZÇĞİÖŞÜI]$/.test(ch)) handleKey(ch);
+
+      if (key === "Enter") {
+        handleKey("ENTER");
+      } else if (key === "Backspace") {
+        handleKey("BACK");
+      } else {
+        const ch = normalizeKey(key);
+        if (/^[A-ZÇĞİÖŞÜI]$/.test(ch)) {
+          handleKey(ch);
+        }
       }
     }
 
@@ -840,13 +845,23 @@
       }
 
       const upperGuess = trUpper(guess);
+      const lowerGuess = upperGuess.toLowerCase();
 
-      // Sözlük kontrolü (VALID_WORDS büyük harfle tutuluyorsa)
-      if (upperGuess !== secretWord &&
-          typeof VALID_WORDS !== "undefined" &&
-          VALID_WORDS &&
-          typeof VALID_WORDS.has === "function" &&
-          !VALID_WORDS.has(upperGuess)) {
+      // Sözlük kontrolü (Set veya Array, case-insensitive)
+      let inDict = true;
+      if (typeof VALID_WORDS !== "undefined" && VALID_WORDS) {
+        if (VALID_WORDS instanceof Set || typeof VALID_WORDS.has === "function") {
+          inDict =
+            VALID_WORDS.has(upperGuess) ||
+            VALID_WORDS.has(lowerGuess);
+        } else if (Array.isArray(VALID_WORDS)) {
+          inDict =
+            VALID_WORDS.includes(upperGuess) ||
+            VALID_WORDS.includes(lowerGuess);
+        }
+      }
+
+      if (upperGuess !== secretWord && !inDict) {
         showStatus("Bu kelime sözlükte yok gibi görünüyor.", "#f97316");
         return;
       }
@@ -936,4 +951,3 @@
 </script>
 </body>
 </html>
-
