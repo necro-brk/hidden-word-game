@@ -352,7 +352,7 @@
     apiKey: "AIzaSyAcKlwqRKpzjJTTp_WptQNxuKLRcJXqH6Y",
     authDomain: "hidden-word-game.firebaseapp.com",
     projectId: "hidden-word-game",
-    storageBucket: "hidden-word-game.firebaseapp.com",
+    storageBucket: "hidden-word-game.firebasestorage.app",
     messagingSenderId: "958945265776",
     appId: "1:958945265776:web:1e57bd1b444912b15fccb5",
     measurementId: "G-2QG1KPS68L"
@@ -368,6 +368,22 @@
     scoresCollection = collection(db, "scores");
   } catch (e) {
     console.warn("Firebase init başarısız. Leaderboard devre dışı:", e);
+  }
+
+  /* ===== Türkçe büyük harfe çevirme yardımcıları ===== */
+  function trUpper(str) {
+    // önce i / ı dönüşümlerini yap, sonra klasik upper
+    return str
+      .replace(/i/g, "İ")
+      .replace(/ı/g, "I")
+      .toUpperCase();
+  }
+
+  function trUpperChar(ch) {
+    if (!ch) return "";
+    if (ch === "i") return "İ";
+    if (ch === "ı") return "I";
+    return trUpper(ch).charAt(0);
   }
 
   /* ===== Küçük yardımcılar ===== */
@@ -547,7 +563,6 @@
 
         let allWords = [];
 
-        // VALID_WORDS global değişkenini oku (Set ya da Array olabilir)
         if (typeof VALID_WORDS !== "undefined") {
           if (Array.isArray(VALID_WORDS)) {
             allWords = VALID_WORDS.slice();
@@ -574,7 +589,7 @@
         }
 
         const randomIndex = Math.floor(Math.random() * candidates.length);
-        const secretWord  = candidates[randomIndex].toUpperCase();
+        const secretWord  = trUpper(candidates[randomIndex]);
 
         CURRENT_GAME_ID = `solo-${mode}`;
 
@@ -592,7 +607,7 @@
             : "Mod: Serbest uzunluk – Solo";
         }
 
-        getPlayerName();           // solo modda da isim hazır olsun
+        getPlayerName();
         subscribeLeaderboard(CURRENT_GAME_ID);
         initGame(secretWord, CURRENT_GAME_ID);
       });
@@ -621,7 +636,7 @@
     /* ===== Link oluşturma modu ===== */
     if (createBtn) {
       createBtn.addEventListener("click", () => {
-        let word = (secretInput.value || "").trim().toUpperCase();
+        let word = (secretInput.value || "").trim();
         const mode = modeSelect.value;
 
         if (!word) {
@@ -630,13 +645,14 @@
         }
 
         word = word.replace(/\s+/g, "");
+        word = trUpper(word);
 
         if (mode === "five" && word.length !== 5) {
           alert("Wordle modunda kelime 5 harfli olmalı.");
           return;
         }
 
-        if (!/^[A-ZÇĞİÖŞÜ]+$/.test(word)) {
+        if (!/^[A-ZÇĞİÖŞÜI]+$/.test(word)) {
           if (!confirm("Kelimenizde harf dışı karakter var. Yine de kullanmak istiyor musun?")) {
             return;
           }
@@ -668,8 +684,10 @@
       setTimeout(() => { getPlayerName(); }, 50);
       subscribeLeaderboard(CURRENT_GAME_ID);
 
-      let secretWord = decodeSecret(codeParam).toUpperCase().replace(/\s+/g, "");
-      if (!/^[A-ZÇĞİÖŞÜ]+$/.test(secretWord) || secretWord.length < 2) {
+      let secretWord = decodeSecret(codeParam);
+      secretWord = trUpper(secretWord).replace(/\s+/g, "");
+
+      if (!/^[A-ZÇĞİÖŞÜI]+$/.test(secretWord) || secretWord.length < 2) {
         secretWord = "HATA";
       }
       if (modeParam === "five" && secretWord.length !== 5) {
@@ -787,8 +805,8 @@
       if (key === "Enter") handleKey("ENTER");
       else if (key === "Backspace") handleKey("BACK");
       else {
-        const ch = key.toUpperCase();
-        if (/^[A-ZÇĞİÖŞÜ]$/.test(ch)) handleKey(ch);
+        const ch = trUpperChar(key);
+        if (/^[A-ZÇĞİÖŞÜI]$/.test(ch)) handleKey(ch);
       }
     }
 
@@ -821,8 +839,9 @@
         return;
       }
 
-      const upperGuess = guess.toUpperCase();
+      const upperGuess = trUpper(guess);
 
+      // Sözlük kontrolü (VALID_WORDS büyük harfle tutuluyorsa)
       if (upperGuess !== secretWord &&
           typeof VALID_WORDS !== "undefined" &&
           VALID_WORDS &&
@@ -917,3 +936,4 @@
 </script>
 </body>
 </html>
+
