@@ -265,10 +265,26 @@
         <button id="create-link-btn">Link Oluştur</button>
       </div>
     </div>
+
     <div id="generated-link-wrap">
       <div>Bu linki arkadaşına gönder:</div>
       <input id="generated-link" type="text" readonly />
       <button id="copy-link-btn" style="margin-top:6px;">Kopyala</button>
+    </div>
+
+    <!-- Tek başına oynama bölümü -->
+    <hr style="margin:14px 0;border-color:#111827;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <div style="font-size:13px;color:#e5e7eb;">
+        <strong>Solo mod:</strong> TDK listesinden rastgele kelime ile kendine karşı oyna.
+        <div style="font-size:11px;color:#9ca3af;margin-top:2px;">
+          Yukarıdaki oyun modu seçimi (Serbest / 5 harfli) solo mod için de geçerli.
+        </div>
+      </div>
+      <button id="solo-start-btn"
+              style="padding:8px 12px;font-size:12px;background:linear-gradient(135deg,#6366f1,#4f46e5);box-shadow:none;">
+        Solo oyuna başla
+      </button>
     </div>
   </div>
 
@@ -332,6 +348,12 @@
     limit,
     onSnapshot
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  // VALID_WORDS Set'inden kullanılabilir bir liste üretelim
+let VALID_WORD_LIST = [];
+if (window.VALID_WORDS && window.VALID_WORDS.size) {
+  VALID_WORD_LIST = Array.from(window.VALID_WORDS);
+}
+
 
   // ⚠️ BURAYI KENDİ FIREBASE CONFIG'İNLE DOLDUR
 const firebaseConfig = {
@@ -512,6 +534,8 @@ function subscribeLeaderboard(gameId) {
     const copyBtn       = document.getElementById("copy-link-btn");
     const changeNameBtn = document.getElementById("change-name-btn");
     const newGameBtn    = document.getElementById("new-game-btn");
+    const soloStartBtn  = document.getElementById("solo-start-btn");
+
 
 
     const codeParam = getQueryParam("code");
@@ -522,6 +546,58 @@ function subscribeLeaderboard(gameId) {
         changePlayerName();
       });
     }
+        // Solo mod: rastgele kelime ile kendi başına oyna
+    if (soloStartBtn) {
+      soloStartBtn.addEventListener("click", () => {
+        if (!VALID_WORD_LIST.length) {
+          alert("Kelime listesi henüz yüklenmedi, lütfen sayfayı yenilemeyi dene.");
+          return;
+        }
+
+        const mode = modeSelect ? modeSelect.value : "free";
+
+        // Mod'a göre aday kelimeleri filtrele
+        let candidates = VALID_WORD_LIST;
+        if (mode === "five") {
+          candidates = candidates.filter(w => w.length === 5);
+        }
+
+        if (!candidates.length) {
+          alert("Bu mod için uygun kelime bulunamadı.");
+          return;
+        }
+
+        // Rastgele kelime seç
+        const randomIndex = Math.floor(Math.random() * candidates.length);
+        const secretWord  = candidates[randomIndex].toUpperCase();
+
+        // Solo oyun için global/ortak bir gameId; mod bazlı yapalım
+        CURRENT_GAME_ID = `solo-${mode}`;
+
+        // URL'deki query parametrelerini temizleyelim (code, mode vb.)
+        const url = new URL(window.location.href);
+        url.search = "";
+        window.history.pushState({}, "", url.toString());
+
+        // Panelleri ayarla
+        if (creatorSection) creatorSection.style.display = "none";
+        if (gameSection)    gameSection.style.display    = "block";
+
+        const modeLabel = document.getElementById("mode-label");
+        if (modeLabel) {
+          modeLabel.textContent = mode === "five"
+            ? "Mod: Wordle (5 harfli kelime) – Solo"
+            : "Mod: Serbest uzunluk – Solo";
+        }
+
+        // Bu solo mod için ortak leaderboard kullan
+        subscribeLeaderboard(CURRENT_GAME_ID);
+
+        // Oyunu başlat
+        initGame(secretWord, CURRENT_GAME_ID);
+      });
+    }
+
         // Yeni oyun oluştur butonu:
     if (newGameBtn) {
       newGameBtn.addEventListener("click", () => {
@@ -842,5 +918,6 @@ function subscribeLeaderboard(gameId) {
 </script>
 </body>
 </html>
+
 
 
