@@ -348,11 +348,7 @@
     limit,
     onSnapshot
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  // VALID_WORDS Set'inden kullanılabilir bir liste üretelim
-let VALID_WORD_LIST = [];
-if (window.VALID_WORDS && window.VALID_WORDS.size) {
-  VALID_WORD_LIST = Array.from(window.VALID_WORDS);
-}
+
 
 
   // ⚠️ BURAYI KENDİ FIREBASE CONFIG'İNLE DOLDUR
@@ -547,17 +543,32 @@ function subscribeLeaderboard(gameId) {
       });
     }
         // Solo mod: rastgele kelime ile kendi başına oyna
+    // Solo mod: rastgele kelime ile kendi başına oyna
     if (soloStartBtn) {
-      soloStartBtn.addEventListener("click", () => {
-        if (!VALID_WORD_LIST.length) {
-          alert("Kelime listesi henüz yüklenmedi, lütfen sayfayı yenilemeyi dene.");
+      soloStartBtn.addEventListener("click", async () => {
+        // Kelime listesi asenkron yükleniyorsa onu bekle
+        if (window.WORDS_READY) {
+          try {
+            await window.WORDS_READY;
+          } catch (e) {
+            console.error("Kelime listesi yüklenirken hata:", e);
+          }
+        }
+
+        let allWords = [];
+        if (window.VALID_WORDS && window.VALID_WORDS.size) {
+          allWords = Array.from(window.VALID_WORDS);
+        }
+
+        if (!allWords.length) {
+          alert("Kelime listesi yüklenemedi, lütfen sayfayı yenilemeyi dene.");
           return;
         }
 
         const mode = modeSelect ? modeSelect.value : "free";
 
-        // Mod'a göre aday kelimeleri filtrele
-        let candidates = VALID_WORD_LIST;
+        // Moda göre filtrele
+        let candidates = allWords;
         if (mode === "five") {
           candidates = candidates.filter(w => w.length === 5);
         }
@@ -571,10 +582,10 @@ function subscribeLeaderboard(gameId) {
         const randomIndex = Math.floor(Math.random() * candidates.length);
         const secretWord  = candidates[randomIndex].toUpperCase();
 
-        // Solo oyun için global/ortak bir gameId; mod bazlı yapalım
+        // Solo mod için ortak gameId (leaderboard ayrı tutulsun diye mode’a göre)
         CURRENT_GAME_ID = `solo-${mode}`;
 
-        // URL'deki query parametrelerini temizleyelim (code, mode vb.)
+        // URL parametrelerini temizle
         const url = new URL(window.location.href);
         url.search = "";
         window.history.pushState({}, "", url.toString());
@@ -590,13 +601,14 @@ function subscribeLeaderboard(gameId) {
             : "Mod: Serbest uzunluk – Solo";
         }
 
-        // Bu solo mod için ortak leaderboard kullan
+        // Bu solo mod için leaderboard
         subscribeLeaderboard(CURRENT_GAME_ID);
 
         // Oyunu başlat
         initGame(secretWord, CURRENT_GAME_ID);
       });
     }
+
 
         // Yeni oyun oluştur butonu:
     if (newGameBtn) {
@@ -918,6 +930,7 @@ function subscribeLeaderboard(gameId) {
 </script>
 </body>
 </html>
+
 
 
 
