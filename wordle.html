@@ -441,37 +441,47 @@ const firebaseConfig = {
     }
   }
 
-  function subscribeLeaderboard(gameId) {
-    if (!scoresCollection) {
-      renderLeaderboardFallback("Firebase yapılandırılmadı, leaderboard devre dışı.");
-      return;
-    }
-    try {
-      const q = query(
-        scoresCollection,
-        where("gameId", "==", gameId),
-        orderBy("score", "desc"),
-        orderBy("createdAt", "asc"),
-        limit(20)
-      );
-      onSnapshot(
-        q,
-        (snapshot) => {
-          const rows = [];
-          snapshot.forEach((doc) => rows.push(doc.data()));
-          renderLeaderboard(rows);
-        },
-        (error) => {
-          console.error("Leaderboard okunamadı:", error);
-          renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
-        }
-      );
-    } catch (e) {
-      console.error("Leaderboard subscribe hatası:", e);
-      renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
-    }
+function subscribeLeaderboard(gameId) {
+  if (!scoresCollection) {
+    renderLeaderboardFallback("Firebase yapılandırılmadı, leaderboard devre dışı.");
+    return;
   }
+  try {
+    // Sadece gameId ile filtreliyoruz, sıralamayı JS tarafında yapacağız
+    const q = query(
+      scoresCollection,
+      where("gameId", "==", gameId),
+      limit(100) // bu link için en fazla 100 skor çekelim, fazlası zaten gereksiz
+    );
 
+    onSnapshot(
+      q,
+      (snapshot) => {
+        const rows = [];
+        snapshot.forEach((doc) => rows.push(doc.data()));
+
+        // JS tarafında skor DESC, tarih ASC sıralama
+        rows.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+
+          const ta = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
+          const tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
+          return ta - tb;
+        });
+
+        console.log("Leaderboard rows for gameId", gameId, rows);
+        renderLeaderboard(rows);
+      },
+      (error) => {
+        console.error("Leaderboard okunamadı:", error);
+        renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
+      }
+    );
+  } catch (e) {
+    console.error("Leaderboard subscribe hatası:", e);
+    renderLeaderboardFallback("Leaderboard yüklenirken hata oluştu.");
+  }
+}
   /* ===== App başlangıcı ===== */
   let creatorSection, gameSection;
 
@@ -798,3 +808,4 @@ const firebaseConfig = {
 </script>
 </body>
 </html>
+
